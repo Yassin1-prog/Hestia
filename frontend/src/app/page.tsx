@@ -118,7 +118,11 @@ export default function HomePage() {
         </button>
       </form>
 
-      {error && <p role="alert" style={styles.error}>{error}</p>}
+      {error && (
+        <p role="alert" style={styles.error}>
+          {error}
+        </p>
+      )}
 
       {result && (
         <div style={{ display: "grid", gap: 20 }}>
@@ -127,7 +131,9 @@ export default function HomePage() {
             <ul style={{ paddingLeft: 20, margin: 0, lineHeight: 1.7 }}>
               {result.steps.map((s) => (
                 <li key={s.step}>
-                  <div><strong>[{s.tool}]</strong> {s.action}</div>
+                  <div>
+                    <strong>[{s.tool}]</strong> {s.action}
+                  </div>
                   <div style={{ color: "#38bdf8" }}>{s.output}</div>
                 </li>
               ))}
