@@ -10,13 +10,9 @@ export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:80
 /** The live pipeline (Firecrawl + Gemini, 3 deep scrapes) can take a couple of minutes. */
 const SEARCH_TIMEOUT_MS = 180_000;
 
-/** Appends the saved profile constraints, so the user never has to repeat them. */
-export function buildRequest(query: string, profile: Profile): string {
-  const constraints = profile.attachToSearch
-    ? profile.constraints.map((c) => c.trim()).filter(Boolean)
-    : [];
-  if (!constraints.length) return query.trim();
-  return `${query.trim()}\n\nAlways respect these saved preferences: ${constraints.join("; ")}.`;
+/** Trims the user query before sending it to POST /api/search. */
+export function buildRequest(query: string, _profile?: Profile): string {
+  return query.trim();
 }
 
 function isProperty(value: unknown): value is Property {

@@ -2,17 +2,14 @@
 
 import {
   CalendarDays,
-  CalendarPlus,
   Check,
   ExternalLink,
   Heart,
   Phone,
-  Plus,
+  Send,
   Trash2,
   UserRound,
-  X,
 } from "lucide-react";
-import { useState } from "react";
 
 import { EmptyState } from "@/components/Drawer";
 import { formatPrice, propertyLocation, propertyTitle, scoreLabel, telHref } from "@/lib/format";
@@ -56,8 +53,8 @@ export function ViewingsPanel({
     return (
       <EmptyState
         icon={<CalendarDays size={20} strokeWidth={1.5} />}
-        title="No viewings yet"
-        text="Press Approve Viewing on a property card and the agent will arrange it with the landlord."
+        title="No contact requests yet"
+        text="Press Ask Agent to Contact on a property card and the agent will reach out to the landlord for you."
       />
     );
   }
@@ -71,7 +68,7 @@ export function ViewingsPanel({
           </div>
           <div className="status">
             <span className="status-dot" />
-            Approved {formatRequested(requestedAt)} · agent will contact the landlord
+            Requested {formatRequested(requestedAt)} · agent will contact the landlord
           </div>
           <div className="mini-actions">
             {p.agent_phone && (
@@ -139,11 +136,11 @@ export function FavoritesPanel({
               >
                 {approved ? (
                   <>
-                    <Check size={13} strokeWidth={2} /> Viewing requested
+                    <Check size={13} strokeWidth={2} /> Agent Contacting
                   </>
                 ) : (
                   <>
-                    <CalendarPlus size={13} strokeWidth={1.75} /> Approve Viewing
+                    <Send size={13} strokeWidth={1.75} /> Ask Agent to Contact
                   </>
                 )}
               </button>
@@ -168,14 +165,6 @@ export function FavoritesPanel({
 // ---------------------------------------------------------------------------
 // Settings / Profile
 // ---------------------------------------------------------------------------
-const SUGGESTIONS = [
-  "I have 2 cats",
-  "Max budget €700",
-  "Need space for a home office",
-  "No ground-floor apartments",
-  "Within 10 minutes of a metro station",
-];
-
 export function SettingsPanel({
   profile,
   onChange,
@@ -183,93 +172,8 @@ export function SettingsPanel({
   profile: Profile;
   onChange: (profile: Profile) => void;
 }) {
-  const [draft, setDraft] = useState("");
-
-  function addConstraint(text: string) {
-    const value = text.trim();
-    if (!value || profile.constraints.some((c) => c.toLowerCase() === value.toLowerCase())) return;
-    onChange({ ...profile, constraints: [...profile.constraints, value] });
-    setDraft("");
-  }
-
-  const suggestions = SUGGESTIONS.filter(
-    (s) => !profile.constraints.some((c) => c.toLowerCase() === s.toLowerCase()),
-  );
-
   return (
     <div className="settings">
-      <section className="settings-section">
-        <h3 className="settings-title">Permanent preferences</h3>
-        <p className="settings-hint">
-          Attached to every search automatically, so you never have to repeat them.
-        </p>
-        <form
-          className="field-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            addConstraint(draft);
-          }}
-        >
-          <input
-            className="field"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="e.g. I have 2 cats"
-            aria-label="New preference"
-          />
-          <button type="submit" className="square-btn" disabled={!draft.trim()} aria-label="Add">
-            <Plus size={16} strokeWidth={1.75} />
-          </button>
-        </form>
-
-        {profile.constraints.length > 0 && (
-          <ul className="constraint-list">
-            {profile.constraints.map((c) => (
-              <li key={c} className="constraint">
-                <span>{c}</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      ...profile,
-                      constraints: profile.constraints.filter((x) => x !== c),
-                    })
-                  }
-                  aria-label={`Remove ${c}`}
-                >
-                  <X size={13} strokeWidth={1.75} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {suggestions.length > 0 && (
-          <div className="suggestions">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="chip chip-small"
-                onClick={() => addConstraint(s)}
-              >
-                <Plus size={12} strokeWidth={1.75} /> {s}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={profile.attachToSearch}
-            onChange={(e) => onChange({ ...profile, attachToSearch: e.target.checked })}
-          />
-          <span className="toggle-track" aria-hidden="true" />
-          Attach preferences to every search
-        </label>
-      </section>
-
       <section className="settings-section">
         <h3 className="settings-title">Contact details</h3>
         <p className="settings-hint">

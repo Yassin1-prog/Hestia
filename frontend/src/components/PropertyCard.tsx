@@ -1,17 +1,16 @@
 "use client";
 
+import { useId } from "react";
 import {
-  CalendarCheck,
-  CalendarPlus,
+  Check,
   ExternalLink,
   Heart,
   Mail,
   MapPin,
-  MessageCircleQuestion,
   Phone,
+  Send,
   ShieldAlert,
   ShieldCheck,
-  Star,
 } from "lucide-react";
 
 import {
@@ -43,6 +42,7 @@ export function PropertyCard({
   onToggleFavorite,
 }: PropertyCardProps) {
   const tier = scoreTier(p.agentic_score);
+  const starGradientId = useId();
 
   return (
     <article
@@ -95,25 +95,19 @@ export function PropertyCard({
 
       {p.score_reason && (
         <section className="why">
-          <h4 className="why-title">
-            <Star size={14} strokeWidth={1.75} />
-            Why the agent picked it
-          </h4>
+          <svg className="why-star" viewBox="0 0 24 24" aria-hidden="true">
+            <defs>
+              <linearGradient id={starGradientId} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="var(--gold)" />
+                <stop offset="100%" stopColor="var(--emerald)" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M12 2C12.9 7.8 16.2 11.1 22 12C16.2 12.9 12.9 16.2 12 22C11.1 16.2 7.8 12.9 2 12C7.8 11.1 11.1 7.8 12 2Z"
+              fill={`url(#${starGradientId})`}
+            />
+          </svg>
           <p className="why-text">{p.score_reason}</p>
-        </section>
-      )}
-
-      {p.missing_info.length > 0 && (
-        <section className="questions">
-          <h4 className="questions-title">
-            <MessageCircleQuestion size={13} strokeWidth={1.75} />
-            The agent will ask the landlord
-          </h4>
-          <ul>
-            {p.missing_info.slice(0, 3).map((q) => (
-              <li key={q}>{q}</li>
-            ))}
-          </ul>
         </section>
       )}
 
@@ -166,11 +160,11 @@ export function PropertyCard({
           >
             {approved ? (
               <>
-                <CalendarCheck size={16} strokeWidth={1.75} /> Viewing requested
+                <Check size={15} strokeWidth={2} /> Agent Contacting
               </>
             ) : (
               <>
-                <CalendarPlus size={16} strokeWidth={1.75} /> Approve Viewing
+                <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact
               </>
             )}
           </button>

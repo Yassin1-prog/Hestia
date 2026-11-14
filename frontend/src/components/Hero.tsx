@@ -1,11 +1,7 @@
 "use client";
 
-import { ArrowUp, SlidersHorizontal } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-export const PLACEHOLDER =
-  "I am looking for a bright apartment in Pangrati or Mets, up to €650. It must accept my " +
-  "labrador and have space for a home office.";
 
 export const QUICK_CHIPS = [
   "Pet-friendly penthouse in central Athens",
@@ -15,12 +11,10 @@ export const QUICK_CHIPS = [
 ];
 
 interface HeroProps {
-  constraintsCount: number;
   onSubmit: (query: string) => void;
-  onOpenSettings: () => void;
 }
 
-export function Hero({ constraintsCount, onSubmit, onOpenSettings }: HeroProps) {
+export function Hero({ onSubmit }: HeroProps) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -59,20 +53,14 @@ export function Hero({ constraintsCount, onSubmit, onOpenSettings }: HeroProps) 
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 submit();
               }
             }}
-            placeholder={PLACEHOLDER}
-            rows={4}
+            rows={2}
             aria-label="Describe the home you are looking for"
           />
           <div className="prompt-footer">
-            <button type="button" className="prompt-meta" onClick={onOpenSettings}>
-              <SlidersHorizontal size={14} strokeWidth={1.75} />
-              {constraintsCount > 0
-                ? `${constraintsCount} saved preference${constraintsCount === 1 ? "" : "s"} attached`
-                : "Add permanent preferences"}
-            </button>
             <span className="prompt-hint">
               <kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> new line
             </span>

@@ -41,8 +41,6 @@ export interface Profile {
   name: string;
   email: string;
   phone: string;
-  constraints: string[];
-  attachToSearch: boolean;
 }
 
 export interface Viewing {
@@ -54,6 +52,4 @@ export const EMPTY_PROFILE: Profile = {
   name: "",
   email: "",
   phone: "",
-  constraints: [],
-  attachToSearch: true,
 };

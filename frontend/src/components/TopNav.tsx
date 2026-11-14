@@ -47,7 +47,7 @@ export function TopNav({ viewingsCount, favoritesCount, onHome, onOpen }: TopNav
       <nav className="topnav-actions" aria-label="Panels">
         <button type="button" className="nav-btn" onClick={() => onOpen("viewings")}>
           <CalendarDays size={16} strokeWidth={1.75} />
-          <span>My Viewings</span>
+          <span>Contact Requests</span>
           {viewingsCount > 0 && <span className="nav-count">{viewingsCount}</span>}
         </button>
         <button type="button" className="nav-btn" onClick={() => onOpen("favorites")}>
