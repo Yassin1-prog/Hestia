@@ -36,7 +36,7 @@ Gen-AI-Summit/
 ```powershell
 .\run.ps1
 # Or manually:
-uv run uvicorn backend.main:app --reload --port 8000
+uv run python -m uvicorn backend.main:app --reload --port 8000
 ```
 
 * API: `http://localhost:8000`

@@ -1,9 +1,10 @@
 from typing import Any, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.outreach import (
@@ -18,6 +19,10 @@ from backend.outreach import (
     extract_contacts,
     run_outreach,
 )
+
+from backend.outreach.live import stream_listing_outreach
+from backend.photos import ImageFetchError, fetch_image
+from backend.streaming import NDJSON_MEDIA_TYPE, stream_async_events, stream_sync_pipeline
 
 load_dotenv()
 
@@ -60,14 +65,54 @@ class SearchInput(BaseModel):
 
 @app.post("/api/search")
 async def search(payload: SearchInput) -> List[dict[str, Any]]:
+    """Blocking search: returns the final ranked listings (with Oumi verdicts when configured)."""
     # Imported lazily so the API (and outreach) work without Gemini/Firecrawl installed/configured.
-    from backend.agent import run_search_pipeline
+    from backend.agent import run_search
 
     try:
-        properties = await run_in_threadpool(run_search_pipeline, payload.request, False)
+        outcome = await run_in_threadpool(run_search, payload.request)
     except RuntimeError as exc:  # Missing API keys.
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return [p.model_dump() for p in properties]
+    return outcome.properties
+
+
+@app.post("/api/search/stream")
+async def search_stream(payload: SearchInput):
+    """Same pipeline as /api/search, streamed as NDJSON progress events (see backend/streaming.py).
+
+    The last line is `{"type": "result", "properties": [...], "stats": {...}}`
+    or `{"type": "error", "detail": "..."}`.
+    """
+    from backend.agent import run_search
+
+    def to_result(outcome) -> dict[str, Any]:
+        return {
+            "properties": outcome.properties,
+            "stats": {"scanned": outcome.scanned, "rejected": outcome.rejected},
+        }
+
+    return StreamingResponse(
+        stream_sync_pipeline(lambda emit: run_search(payload.request, emit), to_result),
+        media_type=NDJSON_MEDIA_TYPE,
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/api/image")
+async def image_proxy(url: str = Query(..., max_length=2048)):
+    """Serves a listing photo through the backend (portals often block hot-linking).
+
+    Public http(s) hosts only; raster images only; 8 MB cap. See backend/photos.py.
+    """
+    try:
+        content, media_type = await fetch_image(url)
+    except ImageFetchError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +141,11 @@ class OutreachInput(BaseModel):
     )
     language: str = Field(default="en", pattern="^(en|el)$")
     note: Optional[str] = None
+    questions: Optional[List[str]] = Field(
+        default=None,
+        description="Questions the user approved for the landlord (the ranker's plus their own). "
+        "When empty, each listing's missing_info is used.",
+    )
     dry_run: bool = Field(
         default=False,
         description="Force a dry run. Cannot disable OUTREACH_DRY_RUN=true set on the server.",
@@ -107,6 +157,7 @@ class OutreachInput(BaseModel):
             viewing_windows=self.viewing_windows,
             language=self.language,  # type: ignore[arg-type]
             note=self.note,
+            questions=self.questions,
         )
 
 
@@ -134,4 +185,38 @@ async def outreach_send(payload: OutreachInput):
         raise HTTPException(status_code=422, detail="No approved properties to contact.")
     return await run_outreach(
         payload.properties, payload.context(), payload.channels, force_dry_run=payload.dry_run
+    )
+
+
+class LiveOutreachInput(OutreachInput):
+    calendar_url: Optional[str] = Field(
+        default=None,
+        description="Google Calendar 'secret address in iCal format' used to find free viewing "
+        "slots. Falls back to GOOGLE_CALENDAR_ICS_URL, then to a sample work week.",
+    )
+    demo: bool = Field(default=False, description="Demo listing: always a dry run.")
+
+
+@app.post("/api/outreach/stream")
+async def outreach_stream(payload: LiveOutreachInput):
+    """Runs the outreach agent for ONE approved listing, streaming each step as NDJSON.
+
+    Steps: brief → calendar (free viewing slots) → contact → draft (a `draft` event with the
+    exact e-mail) → send, then a `result` event shaped like `PropertyOutreachResult` plus
+    `viewing_windows` and `dry_run`.
+    """
+    if len(payload.properties) != 1:
+        raise HTTPException(status_code=422, detail="Stream exactly one approved property.")
+    events = stream_listing_outreach(
+        payload.properties[0],
+        payload.context(),
+        calendar_url=payload.calendar_url,
+        channels=payload.channels,
+        force_dry_run=payload.dry_run,
+        demo=payload.demo,
+    )
+    return StreamingResponse(
+        stream_async_events(events),
+        media_type=NDJSON_MEDIA_TYPE,
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

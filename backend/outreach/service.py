@@ -118,12 +118,19 @@ class ListingOutreachAgent:
 
     async def run(self, client: httpx.AsyncClient) -> PropertyOutreachResult:
         contacts = extract_contacts(self.listing)
+        attempts = await self.send(client, contacts)
+        return self.result(contacts, attempts)
+
+    async def send(self, client: httpx.AsyncClient, contacts: ExtractedContacts) -> list[ChannelAttempt]:
+        """Sends on every channel of this agent; SMS + e-mail go out in parallel."""
         tasks = []
         if "sms" in self.channels:
             tasks.append(self._sms(client, contacts))
         if "email" in self.channels:
             tasks.append(self._email(client, contacts))
-        attempts = list(await asyncio.gather(*tasks))  # SMS + e-mail go out in parallel.
+        return list(await asyncio.gather(*tasks))
+
+    def result(self, contacts: ExtractedContacts, attempts: list[ChannelAttempt]) -> PropertyOutreachResult:
         return PropertyOutreachResult(
             url=str(self.listing.get("url") or ""),
             status=_overall_status(attempts),

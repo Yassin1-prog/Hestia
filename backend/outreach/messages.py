@@ -31,6 +31,11 @@ class OutreachContext(BaseModel):
     )
     language: Language = "en"
     note: Optional[str] = Field(default=None, description="Optional personal note from the user.")
+    questions: Optional[list[str]] = Field(
+        default=None,
+        description="The exact questions the user approved (ranker's + their own). "
+        "When set (even to []), it replaces the listing's missing_info.",
+    )
 
 
 class EmailContent(BaseModel):
@@ -93,6 +98,7 @@ _T: dict[Language, dict[str, str]] = {
 
 MAX_SMS_WINDOWS = 2
 MAX_QUESTIONS = 5
+MAX_APPROVED_QUESTIONS = 10  # The user picked these explicitly, so allow more.
 
 
 def _spec(listing: dict[str, Any], t: dict[str, str]) -> str:
@@ -133,9 +139,26 @@ def _greeting(name: Optional[str], t: dict[str, str]) -> str:
     return f"{t['hello']} {n}," if n else f"{t['hello']},"
 
 
-def _questions(listing: dict[str, Any], lang: Language) -> list[str]:
-    """Missing-info questions from the ranker, falling back to sensible defaults."""
-    custom = [q.strip() for q in (listing.get("missing_info") or []) if isinstance(q, str) and q.strip()]
+def _clean(questions: Any) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for q in questions or []:
+        if not isinstance(q, str) or not q.strip():
+            continue
+        text = " ".join(q.split())
+        if text.lower() not in seen:
+            seen.add(text.lower())
+            out.append(text)
+    return out
+
+
+def _questions(listing: dict[str, Any], ctx: OutreachContext | Language) -> list[str]:
+    """The user's approved questions, else the ranker's missing-info ones, else defaults."""
+    lang: Language = ctx if isinstance(ctx, str) else ctx.language  # type: ignore[assignment]
+    if not isinstance(ctx, str) and ctx.questions is not None:
+        # The user reviewed the list: respect it exactly, even if they cleared it.
+        return _clean(ctx.questions)[:MAX_APPROVED_QUESTIONS]
+    custom = _clean(listing.get("missing_info"))
     return (custom or DEFAULT_QUESTIONS[lang])[:MAX_QUESTIONS]
 
 
@@ -165,7 +188,7 @@ def compose_email(
     greeting = _greeting(landlord_name, t)
     intro = t["intro"].format(user=ctx.user.name, spec=f" ({spec})" if spec else "") + "."
     intro = intro[0].upper() + intro[1:]
-    questions = _questions(listing, ctx.language)
+    questions = _questions(listing, ctx)
     windows = ctx.viewing_windows or [t["any_time"]]
     contacts = [c for c in (ctx.user.phone, ctx.user.email) if c]
 
@@ -175,7 +198,8 @@ def compose_email(
         text_lines.append(url)
     if ctx.note:
         text_lines += ["", ctx.note]
-    text_lines += ["", t["questions_header"], *[f"- {q}" for q in questions]]
+    if questions:
+        text_lines += ["", t["questions_header"], *[f"- {q}" for q in questions]]
     text_lines += ["", t["windows_header"], *[f"- {w}" for w in windows]]
     if contacts:
         text_lines += ["", t["contact_header"], *[f"- {c}" for c in contacts]]
@@ -193,7 +217,8 @@ def compose_email(
     html_parts.append("</p>")
     if ctx.note:
         html_parts.append(f"<p>{e(ctx.note)}</p>")
-    html_parts += [f"<p>{e(t['questions_header'])}</p>", ul(questions)]
+    if questions:
+        html_parts += [f"<p>{e(t['questions_header'])}</p>", ul(questions)]
     html_parts += [f"<p>{e(t['windows_header'])}</p>", ul(windows)]
     if contacts:
         html_parts += [f"<p>{e(t['contact_header'])}</p>", ul(contacts)]

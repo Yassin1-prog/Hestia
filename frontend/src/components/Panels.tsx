@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarCheck,
   CalendarDays,
   Check,
   ExternalLink,
@@ -13,8 +14,10 @@ import {
 } from "lucide-react";
 
 import { EmptyState } from "@/components/Drawer";
+import { ListingPhoto } from "@/components/ListingPhoto";
 import { formatPrice, propertyLocation, propertyTitle, scoreLabel } from "@/lib/format";
-import type { EmailOutcome, Profile, Property, Viewing } from "@/lib/types";
+import { outcomeText } from "@/components/OutreachWorkspace";
+import type { OutreachRun, Profile, Property, Viewing } from "@/lib/types";
 
 function formatRequested(iso: string): string {
   const d = new Date(iso);
@@ -30,34 +33,17 @@ function formatRequested(iso: string): string {
 
 function MiniProperty({ property: p }: { property: Property }) {
   return (
-    <div className="mini-main">
-      <p className="mini-title">{propertyTitle(p)}</p>
-      <p className="mini-sub">
-        {propertyLocation(p)} · {formatPrice(p.price)}
-        {p.sqm ? ` · ${p.sqm} m²` : ""}
-      </p>
+    <div className="mini-main mini-with-photo">
+      <ListingPhoto images={p.images} alt="" className="mini-photo" />
+      <div className="mini-text">
+        <p className="mini-title">{propertyTitle(p)}</p>
+        <p className="mini-sub">
+          {propertyLocation(p)} · {formatPrice(p.price)}
+          {p.sqm ? ` · ${p.sqm} m²` : ""}
+        </p>
+      </div>
     </div>
   );
-}
-
-/** One-line status of the viewing-request e-mail to the landlord. */
-function emailStatus(email: EmailOutcome | undefined): { text: string; tone: string } {
-  switch (email?.state) {
-    case "sending":
-      return { text: "Sending the e-mail to the landlord…", tone: "pending" };
-    case "sent":
-      return { text: `E-mail sent${email.to ? ` to ${email.to}` : ""}`, tone: "ok" };
-    case "dry_run":
-      return { text: "E-mail composed, not sent (server dry run)", tone: "muted" };
-    case "demo":
-      return { text: "Demo listing: no e-mail sent", tone: "muted" };
-    case "no_contact":
-      return { text: "No e-mail address on the listing: use the listing page", tone: "warn" };
-    case "failed":
-      return { text: `E-mail failed${email.detail ? `: ${email.detail}` : ""}`, tone: "error" };
-    default:
-      return { text: "Not e-mailed yet", tone: "muted" };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -65,10 +51,12 @@ function emailStatus(email: EmailOutcome | undefined): { text: string; tone: str
 // ---------------------------------------------------------------------------
 export function ViewingsPanel({
   viewings,
+  runs,
   onRemove,
   onRetry,
 }: {
   viewings: Viewing[];
+  runs: Record<string, OutreachRun>;
   onRemove: (url: string) => void;
   onRetry: (p: Property) => void;
 }) {
@@ -84,20 +72,33 @@ export function ViewingsPanel({
   return (
     <ul className="mini-list">
       {viewings.map(({ property: p, requestedAt, email }) => {
-        const status = emailStatus(email);
-        const canRetry = !email || email.state === "failed";
+        const run = runs[p.url];
+        const live = run?.phase === "running";
+        const current = run?.steps.findLast((st) => st.status === "running");
+        const status = live
+          ? { text: `Agent at work: ${current?.title ?? "starting"}`, tone: "pending" }
+          : email?.state === "sending"
+            ? { text: "Interrupted before the agent finished", tone: "warn" }
+            : outcomeText(email);
+        const canRetry = !live && (!email || email.state === "failed" || email.state === "sending");
         return (
           <li key={p.url} className="mini">
             <div className="mini-row">
               <MiniProperty property={p} />
               <span className="mini-score">{scoreLabel(p.agentic_score)}</span>
             </div>
-            <div className={`status status-${status.tone}`}>
+            <div className={`status status-${status.tone}`} key={status.text}>
               <span className="status-dot" />
               <span>
                 Requested {formatRequested(requestedAt)} · {status.text}
               </span>
             </div>
+            {!live && email?.windows && email.windows.length > 0 && (
+              <p className="mini-slots">
+                <CalendarCheck size={13} strokeWidth={1.75} />
+                Proposed {email.windows.join(" · ")}
+              </p>
+            )}
             <div className="mini-actions">
               {canRetry && (
                 <button
@@ -105,7 +106,7 @@ export function ViewingsPanel({
                   className="text-btn text-btn-accent"
                   onClick={() => onRetry(p)}
                 >
-                  <RotateCw size={13} strokeWidth={1.75} /> {email ? "Retry e-mail" : "Send e-mail"}
+                  <RotateCw size={13} strokeWidth={1.75} /> {email ? "Retry" : "Contact landlord"}
                 </button>
               )}
               {p.agent_email && (
@@ -237,6 +238,28 @@ export function SettingsPanel({
             onChange={(e) => onChange({ ...profile, email: e.target.value })}
             placeholder="alex@example.com"
             autoComplete="email"
+          />
+        </label>
+      </section>
+
+      <section className="settings-section">
+        <h3 className="settings-title">Google Calendar</h3>
+        <p className="settings-hint">
+          The agent proposes viewing times when you are free. Paste your calendar&apos;s{" "}
+          <em>secret address in iCal format</em> (Google Calendar → Settings → your calendar →
+          Integrate calendar). It is read-only and only used to find free slots. Without it, the
+          agent uses a sample work week.
+        </p>
+        <label className="label">
+          Secret iCal address
+          <input
+            className="field"
+            type="url"
+            value={profile.calendarUrl ?? ""}
+            onChange={(e) => onChange({ ...profile, calendarUrl: e.target.value })}
+            placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+            autoComplete="off"
+            spellCheck={false}
           />
         </label>
       </section>

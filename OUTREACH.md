@@ -125,6 +125,31 @@ If credentials are missing, nothing crashes. The attempt comes back `failed` wit
 - **`pyproject.toml` / `uv.lock`**: added `google-genai` and `firecrawl-py`, which `agent.py` already imported but which weren't declared.
 - **`.env.example`**: added all new variables.
 
+## 7b. Live outreach agent + calendar availability
+
+`questions` (on `/preview`, `/send` and `/stream`): the exact questions the user approved in the
+UI's briefing (the ranker's plus their own, up to 10). When present, even as `[]`, it replaces the
+listing's `missing_info`. An empty list leaves the question block out of the e-mail.
+
+`POST /api/outreach/stream` takes the same body as `/send` with exactly one property, plus
+`calendar_url` (optional) and `demo` (forces a dry run). It streams NDJSON events
+(`backend/outreach/live.py`) that the UI renders inside the property card:
+
+| Step | What the agent does |
+| :--- | :--- |
+| `brief` | Reads the listing, the user's profile and the ranker's open questions. |
+| `calendar` | Reads the user's calendar and picks up to 3 free viewing slots in the next 7 days, one per day: weekday evenings 18:00–20:30, Saturday 10–14 / 16–19, Sunday 11–14. Each slot is at least 1 h and leaves a 30-min travel buffer around events. Busy evenings are reported. |
+| `contact` | Verifies the landlord's e-mail (portal and no-reply addresses filtered) and picks the greeting. |
+| `draft` | Composes the e-mail with those slots as viewing windows. A `draft` event carries the exact subject and body. |
+| `send` | Sends via Resend (or reports the dry run), then a `result` event shaped like `PropertyOutreachResult` plus `viewing_windows` and `dry_run`. |
+
+**Calendar (`backend/outreach/availability.py`):** no OAuth. The user pastes their Google Calendar
+*secret address in iCal format* in Settings (or the server sets `GOOGLE_CALENDAR_ICS_URL`).
+`webcal://` links are accepted. Recurring events are expanded, and events marked *Free*
+(`TRANSP:TRANSPARENT`, which includes most all-day events) don't block a slot. Without a calendar,
+or if it can't be read, the agent uses a sample work week and says so in its log. The time zone is
+`OUTREACH_TIMEZONE` (default `Europe/Athens`).
+
 ## 8. Not done yet / next steps
 
 - **Inbound replies:** Twilio inbound-SMS webhook and Resend inbound e-mail, which would let the agent read landlord replies and update the dashboard. Today replies go directly to the user's phone/inbox.

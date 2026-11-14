@@ -1,12 +1,15 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import {
   Check,
   ExternalLink,
   Heart,
+  Images,
+  LoaderCircle,
   Mail,
   MapPin,
+  Maximize2,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -17,18 +20,26 @@ import {
   propertyFacts,
   propertyLocation,
   propertyTitle,
-  scoreLabel,
   scoreTier,
 } from "@/lib/format";
-import type { Property } from "@/lib/types";
+import { ContactBrief } from "@/components/ContactBrief";
+import { CountUp } from "@/components/CountUp";
+import { ListingPhoto } from "@/components/ListingPhoto";
+import { OutreachWorkspace } from "@/components/OutreachWorkspace";
+import { useTilt } from "@/lib/motion";
+import type { OutreachRun, Property } from "@/lib/types";
 
 interface PropertyCardProps {
   property: Property;
   rank: number;
   approved: boolean;
   favorite: boolean;
-  onApprove: () => void;
+  /** The live outreach agent for this listing, if one was started in this session. */
+  run?: OutreachRun;
+  /** Called once the user approved the questions in the briefing. */
+  onApprove: (questions: string[]) => void;
   onToggleFavorite: () => void;
+  onShowDetails: () => void;
 }
 
 export function PropertyCard({
@@ -36,18 +47,38 @@ export function PropertyCard({
   rank,
   approved,
   favorite,
+  run,
   onApprove,
   onToggleFavorite,
+  onShowDetails,
 }: PropertyCardProps) {
+  const working = run?.phase === "running";
+  const [briefing, setBriefing] = useState(false);
+  const tilt = useTilt();
   const tier = scoreTier(p.agentic_score);
   const starGradientId = useId();
 
   return (
     <article
       id={`property-${rank}`}
-      className="card"
-      style={{ animationDelay: `${(rank - 1) * 120}ms` }}
+      className={`card card-tilt${working ? " is-working" : ""}`}
+      style={{ animationDelay: `${(rank - 1) * 140}ms` }}
+      {...tilt}
     >
+      <span className="card-glare" aria-hidden="true" />
+      <button
+        type="button"
+        className="card-media"
+        onClick={onShowDetails}
+        aria-label={`View photos and details of ${propertyTitle(p)}`}
+      >
+        <ListingPhoto images={p.images} alt={propertyTitle(p)} priority={rank === 1} />
+        {(p.images?.length ?? 0) > 1 && (
+          <span className="photo-count">
+            <Images size={12} strokeWidth={2} /> {p.images?.length}
+          </span>
+        )}
+      </button>
       <header className="card-head">
         <span className="card-rank">{String(rank).padStart(2, "0")}</span>
         <div className="card-heading">
@@ -55,7 +86,11 @@ export function PropertyCard({
             <MapPin size={13} strokeWidth={1.75} />
             {propertyLocation(p)}
           </p>
-          <h3 className="card-title">{propertyTitle(p)}</h3>
+          <h3 className="card-title">
+            <button type="button" className="card-title-btn" onClick={onShowDetails}>
+              {propertyTitle(p)}
+            </button>
+          </h3>
           <p className="card-facts">
             {propertyFacts(p).map((fact) => (
               <span key={fact}>{fact}</span>
@@ -64,10 +99,12 @@ export function PropertyCard({
         </div>
         <div className={`score score-${tier}`} aria-label={`Agent score ${p.agentic_score} of 10`}>
           <span className="score-value">
-            {scoreLabel(p.agentic_score)}
+            <CountUp value={p.agentic_score} delay={(rank - 1) * 140 + 250} />
             <small>/10</small>
           </span>
-          <span className="score-label">Match {matchPercent(p.agentic_score)}%</span>
+          <span className="score-label">
+            Match <CountUp value={matchPercent(p.agentic_score)} delay={(rank - 1) * 140 + 250} />%
+          </span>
         </div>
       </header>
 
@@ -130,6 +167,14 @@ export function PropertyCard({
         <div className="card-actions">
           <button
             type="button"
+            className="details-btn"
+            onClick={onShowDetails}
+            title="Pros, cons and score breakdown"
+          >
+            <Maximize2 size={14} strokeWidth={1.75} /> Details
+          </button>
+          <button
+            type="button"
             className={`icon-btn${favorite ? " is-active" : ""}`}
             onClick={onToggleFavorite}
             aria-pressed={favorite}
@@ -150,22 +195,41 @@ export function PropertyCard({
           </a>
           <button
             type="button"
-            className={`approve-btn${approved ? " is-approved" : ""}`}
-            onClick={onApprove}
-            disabled={approved}
+            className={`approve-btn${approved || working ? " is-approved" : ""}`}
+            onClick={() => setBriefing(true)}
+            disabled={approved || working || briefing}
           >
-            {approved ? (
-              <>
-                <Check size={15} strokeWidth={2} /> Agent Contacting
-              </>
-            ) : (
-              <>
-                <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact
-              </>
-            )}
+            {/* Keyed so the label cross-fades when the state changes. */}
+            <span className="btn-swap" key={working ? "w" : approved ? "a" : "n"}>
+              {working ? (
+                <>
+                  <LoaderCircle size={15} strokeWidth={2} className="spin" /> Agent at work
+                </>
+              ) : approved ? (
+                <>
+                  <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                </>
+              ) : (
+                <>
+                  <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact
+                </>
+              )}
+            </span>
           </button>
         </div>
       </footer>
+
+      {briefing && !run && !approved && (
+        <ContactBrief
+          property={p}
+          onCancel={() => setBriefing(false)}
+          onSend={(questions) => {
+            setBriefing(false);
+            onApprove(questions);
+          }}
+        />
+      )}
+      {run && <OutreachWorkspace run={run} />}
     </article>
   );
 }

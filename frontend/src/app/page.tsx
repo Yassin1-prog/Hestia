@@ -2,6 +2,7 @@
 
 import {
   ArrowUp,
+  Bot,
   CalendarDays,
   CircleAlert,
   Heart,
@@ -16,57 +17,56 @@ import { Drawer } from "@/components/Drawer";
 import { Hero } from "@/components/Hero";
 import { FavoritesPanel, SettingsPanel, ViewingsPanel } from "@/components/Panels";
 import { PropertyCard } from "@/components/PropertyCard";
+import { PropertyDetails } from "@/components/PropertyDetails";
 import { TopNav, type PanelKey } from "@/components/TopNav";
-import { requestViewing, searchProperties } from "@/lib/api";
-import { propertyTitle } from "@/lib/format";
+import { formatDuration, propertyTitle } from "@/lib/format";
 import { usePersistentState } from "@/lib/storage";
+import { useOutreachAgents } from "@/lib/useOutreachAgents";
+import { useSearchAgent } from "@/lib/useSearchAgent";
 import {
   EMPTY_PROFILE,
   type EmailOutcome,
   type Profile,
   type Property,
-  type SearchResult,
   type Viewing,
 } from "@/lib/types";
 
-interface Search {
-  id: number;
-  query: string;
-  result: SearchResult | null;
-  error: string | null;
-}
-
-function useElapsed(running: boolean, resetKey: number) {
-  const [state, setState] = useState({ key: resetKey, seconds: 0 });
-  const seconds = state.key === resetKey && running ? state.seconds : 0;
-
+function useNow(running: boolean) {
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => {
-      setState((prev) => ({
-        key: resetKey,
-        seconds: prev.key === resetKey ? prev.seconds + 1 : 1,
-      }));
-    }, 1000);
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [running, resetKey]);
+  }, [running]);
+  return now;
+}
 
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+function slotsPhrase(outcome: EmailOutcome): string {
+  const n = outcome.windows?.length ?? 0;
+  return n ? `, proposing ${n} viewing slot${n === 1 ? "" : "s"} from your calendar` : "";
 }
 
 export default function HomePage() {
-  const [search, setSearch] = useState<Search | null>(null);
-  /** Id of the search whose steps have finished; the property list appears below the steps after it. */
-  const [revealedId, setRevealedId] = useState<number | null>(null);
   const [followUp, setFollowUp] = useState("");
   const [panel, setPanel] = useState<PanelKey | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
   const [profile, setProfile] = usePersistentState<Profile>("hestia.profile", EMPTY_PROFILE);
   const [viewings, setViewings] = usePersistentState<Viewing[]>("hestia.viewings", []);
   const [favorites, setFavorites] = usePersistentState<Property[]>("hestia.favorites", []);
-  const abortRef = useRef<AbortController | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const idRef = useRef(0);
+  const [details, setDetails] = useState<{
+    property: Property;
+    rank: number;
+    brief: boolean;
+  } | null>(null);
+
+  const {
+    search,
+    run: runSearchAgent,
+    stop: stopSearch,
+    reset: resetSearch,
+  } = useSearchAgent(profile);
 
   const approvedUrls = useMemo(() => new Set(viewings.map((v) => v.property.url)), [viewings]);
   const favoriteUrls = useMemo(() => new Set(favorites.map((f) => f.url)), [favorites]);
@@ -74,80 +74,79 @@ export default function HomePage() {
   const notify = useCallback((text: string) => {
     const id = Date.now();
     setToast({ id, text });
-    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 3200);
+    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 3600);
   }, []);
 
-  const runSearch = useCallback(
-    async (query: string) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      const id = ++idRef.current;
-      setRevealedId(null);
-      setFollowUp("");
-      setSearch({ id, query, result: null, error: null });
-      try {
-        const result = await searchProperties(query, profile, controller.signal);
-        setSearch((s) => (s?.id === id ? { ...s, result } : s));
-      } catch {
-        setSearch((s) =>
-          s?.id === id ? { ...s, error: "Search stopped. Adjust your request and try again." } : s,
-        );
-      }
-    },
-    [profile],
-  );
-
-  const goHome = useCallback(() => {
-    abortRef.current?.abort();
-    setRevealedId(null);
-    setFollowUp("");
-    setSearch(null);
-  }, []);
-
-  const stopSearch = useCallback(() => {
-    abortRef.current?.abort();
-    setSearch((s) =>
-      s && !s.error ? { ...s, error: "Search stopped. Adjust your request and try again." } : s,
-    );
-  }, []);
-
-  /** E-mails the landlord (the only outreach channel) and records the outcome on the viewing. */
-  const sendViewingEmail = useCallback(
-    async (property: Property) => {
-      const setEmail = (email: EmailOutcome) =>
-        setViewings((v) => v.map((x) => (x.property.url === property.url ? { ...x, email } : x)));
-      setEmail({ state: "sending" });
-      const outcome = await requestViewing(property, profile);
-      setEmail(outcome);
+  /** The outreach agent finished: persist the outcome on the viewing and tell the user. */
+  const onOutreachFinished = useCallback(
+    (property: Property, outcome: EmailOutcome) => {
+      setViewings((v) =>
+        v.map((x) => (x.property.url === property.url ? { ...x, email: outcome } : x)),
+      );
       const title = propertyTitle(property);
       notify(
         {
           sending: "",
-          sent: `Agent e-mailed the landlord: ${title}. Added to Contact Requests.`,
-          dry_run: `Added to Contact Requests: ${title}. E-mail composed but not sent (server dry run).`,
-          demo: `Added to Contact Requests: ${title}. Demo listing, so no e-mail was sent.`,
-          no_contact: `Added to Contact Requests: ${title}. The listing has no e-mail address to contact.`,
-          failed: `Could not e-mail the landlord for ${title}. Retry from Contact Requests.`,
+          sent: `Agent e-mailed the landlord about ${title}${slotsPhrase(outcome)}.`,
+          dry_run: `E-mail for ${title} composed but not sent (server dry run).`,
+          demo: `Demo listing: the agent wrote the e-mail for ${title}, nothing was sent.`,
+          no_contact: `${title} has no e-mail address to contact.`,
+          failed: `Could not contact the landlord for ${title}. Retry from Contact Requests.`,
         }[outcome.state],
       );
     },
-    [profile, setViewings, notify],
+    [setViewings, notify],
+  );
+
+  const outreach = useOutreachAgents(profile, onOutreachFinished);
+
+  /** Retry from Contact Requests, reusing the questions approved the first time. */
+  const contactLandlord = useCallback(
+    (property: Property) => {
+      const previous = viewings.find((x) => x.property.url === property.url);
+      setViewings((v) =>
+        v.map((x) => (x.property.url === property.url ? { ...x, email: { state: "sending" } } : x)),
+      );
+      void outreach.start(property, previous?.questions);
+    },
+    [viewings, setViewings, outreach],
   );
 
   const approve = useCallback(
-    (property: Property) => {
+    (property: Property, questions: string[]) => {
       if (approvedUrls.has(property.url)) return;
       if (!profile.name.trim() || !profile.email.trim()) {
+        setDetails(null);
         setPanel("settings");
         notify("Add your name and e-mail first, so the landlord can reply to you.");
         return;
       }
-      setViewings((v) => [{ property, requestedAt: new Date().toISOString() }, ...v]);
-      void sendViewingEmail(property);
+      setViewings((v) => [
+        {
+          property,
+          requestedAt: new Date().toISOString(),
+          email: { state: "sending" },
+          questions,
+        },
+        ...v,
+      ]);
+      void outreach.start(property, questions);
     },
-    [approvedUrls, profile, setViewings, notify, sendViewingEmail],
+    [approvedUrls, profile, setViewings, notify, outreach],
   );
+
+  const runSearch = useCallback(
+    (query: string) => {
+      setFollowUp("");
+      void runSearchAgent(query);
+    },
+    [runSearchAgent],
+  );
+
+  const goHome = useCallback(() => {
+    resetSearch();
+    setFollowUp("");
+  }, [resetSearch]);
 
   const toggleFavorite = useCallback(
     (property: Property) => {
@@ -162,16 +161,24 @@ export default function HomePage() {
   );
 
   const closePanel = useCallback(() => setPanel(null), []);
-  const revealed = !!search && revealedId === search.id;
-  const running = !!search && !revealed && !search.error;
-  const searchId = search?.id ?? 0;
-  const elapsed = useElapsed(running, searchId);
+  const closeDetails = useCallback(() => setDetails(null), []);
+  const phase = search?.phase;
+  const revealed = phase === "done";
+  const running = phase === "running";
+  const now = useNow(running);
+  const elapsed = search ? formatDuration((search.finishedAt ?? now) - search.startedAt) : "0:00";
+  const durationMs = search ? (search.finishedAt ?? now) - search.startedAt : 0;
   const properties = revealed ? (search?.result?.properties ?? []) : [];
+  const searchId = search?.id ?? 0;
 
   useEffect(() => {
     if (!searchId) return;
     bodyRef.current?.scrollTo({ top: 0 });
   }, [searchId]);
+
+  useEffect(() => {
+    if (revealed) bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [revealed]);
 
   return (
     <div className="app">
@@ -189,17 +196,25 @@ export default function HomePage() {
         ) : (
           <section className="single-pane results" aria-label="Search results">
             <header className="pane-head">
-              <div>
-                <p className="pane-kicker">
-                  {search.error
-                    ? "Search stopped"
-                    : revealed
-                      ? `Top matches${properties.length ? ` · ${properties.length} homes selected` : ""}`
-                      : "Agent steps"}
-                </p>
-                <p className="pane-query" title={search.query}>
-                  {search.query}
-                </p>
+              <div className="pane-head-main">
+                <span
+                  className={`agent-avatar${running ? " is-working" : revealed ? " is-done" : ""}`}
+                  aria-hidden="true"
+                >
+                  <Bot size={16} strokeWidth={1.75} />
+                </span>
+                <div className="pane-head-text">
+                  <p className="pane-kicker" key={phase}>
+                    {phase === "stopped"
+                      ? "Search stopped"
+                      : revealed
+                        ? `Top matches${properties.length ? ` · ${properties.length} homes selected` : ""}`
+                        : "Agent at work"}
+                  </p>
+                  <p className="pane-query" title={search.query}>
+                    {search.query}
+                  </p>
+                </div>
               </div>
               <div className="pane-head-actions">
                 {running ? (
@@ -225,9 +240,11 @@ export default function HomePage() {
             <div className="pane-body cards" ref={bodyRef}>
               <AgentFeed
                 key={search.id}
+                steps={search.steps}
+                phase={search.phase}
                 result={search.result}
                 error={search.error}
-                onComplete={() => setRevealedId(search.id)}
+                durationMs={durationMs}
               />
 
               {revealed && (
@@ -236,7 +253,8 @@ export default function HomePage() {
                     <div className="notice">
                       <CircleAlert size={15} strokeWidth={1.75} />
                       <span>
-                        Showing demo data — start the FastAPI server on port 8000 for live results.
+                        {search.result.notice} Showing demo data: start the FastAPI server on port
+                        8000 for live results.
                       </span>
                     </div>
                   )}
@@ -247,8 +265,10 @@ export default function HomePage() {
                       rank={i + 1}
                       approved={approvedUrls.has(p.url)}
                       favorite={favoriteUrls.has(p.url)}
-                      onApprove={() => approve(p)}
+                      run={outreach.runs[p.url]}
+                      onApprove={(questions) => approve(p, questions)}
                       onToggleFavorite={() => toggleFavorite(p)}
+                      onShowDetails={() => setDetails({ property: p, rank: i + 1, brief: false })}
                     />
                   ))}
                   {!properties.length && (
@@ -268,7 +288,6 @@ export default function HomePage() {
                   e.preventDefault();
                   const text = followUp.trim();
                   if (!text) return;
-                  setFollowUp("");
                   runSearch(`${search.query}. Additional instructions: ${text}`);
                 }}
               >
@@ -302,8 +321,12 @@ export default function HomePage() {
       >
         <ViewingsPanel
           viewings={viewings}
-          onRetry={(p) => void sendViewingEmail(p)}
-          onRemove={(url) => setViewings((v) => v.filter((x) => x.property.url !== url))}
+          runs={outreach.runs}
+          onRetry={contactLandlord}
+          onRemove={(url) => {
+            outreach.cancel(url);
+            setViewings((v) => v.filter((x) => x.property.url !== url));
+          }}
         />
       </Drawer>
 
@@ -318,19 +341,34 @@ export default function HomePage() {
           favorites={favorites}
           approvedUrls={approvedUrls}
           onRemove={(url) => setFavorites((f) => f.filter((x) => x.url !== url))}
-          onApprove={approve}
+          onApprove={(p) => {
+            setPanel(null);
+            setDetails({ property: p, rank: 0, brief: true });
+          }}
         />
       </Drawer>
 
       <Drawer
         open={panel === "settings"}
         title="Settings and profile"
-        subtitle="Contact details used when scheduling viewings"
+        subtitle="Contact details and calendar used when scheduling viewings"
         icon={<UserRound size={16} strokeWidth={1.75} />}
         onClose={closePanel}
       >
         <SettingsPanel profile={profile} onChange={setProfile} />
       </Drawer>
+
+      <PropertyDetails
+        property={details?.property ?? null}
+        rank={details?.rank ?? 0}
+        startWithBrief={details?.brief}
+        approved={!!details && approvedUrls.has(details.property.url)}
+        favorite={!!details && favoriteUrls.has(details.property.url)}
+        run={details ? outreach.runs[details.property.url] : undefined}
+        onClose={closeDetails}
+        onApprove={(questions) => details && approve(details.property, questions)}
+        onToggleFavorite={() => details && toggleFavorite(details.property)}
+      />
 
       {toast && (
         <div className="toast" role="status" key={toast.id}>

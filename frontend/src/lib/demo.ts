@@ -215,6 +215,150 @@ const STUDENT: DemoSet = {
   ],
 };
 
+type Insights = Required<Pick<Property, "pros" | "cons" | "metrics">>;
+
+const m = (name: string, score: number, note: string) => ({ name, score, note });
+
+/** What the listing agent concluded for each demo listing (keyed by its `?demo=` id). */
+const INSIGHTS: Record<string, Insights> = {
+  "1": {
+    pros: [
+      "Balcony and explicit pet approval",
+      "Spare bedroom for a home office",
+      "6-minute walk to Evangelismos metro",
+    ],
+    cons: ["Pet deposit not stated", "Building fees may be extra"],
+    metrics: [
+      m("Price & value", 8, "€8.2/m², below the Pangrati median"),
+      m("Space & layout", 9, "Two bedrooms, 78 m², corner unit"),
+      m("Location", 9, "Quiet street, metro and park nearby"),
+      m("Condition & light", 9, "Third floor, south-facing balcony"),
+      m("Your must-haves", 10, "Bright, pets allowed, under budget"),
+    ],
+  },
+  "2": {
+    pros: [
+      "Brightest option, floor-to-ceiling windows",
+      "Renovated in 2023",
+      "Elevator in the building",
+    ],
+    cons: ["Pets only negotiable, not confirmed", "One bedroom: desk shares the living room"],
+    metrics: [
+      m("Price & value", 8, "€9.5/m², fair for a renovation"),
+      m("Space & layout", 7, "64 m², open-plan living room"),
+      m("Location", 9, "Next to the Panathenaic Stadium"),
+      m("Condition & light", 10, "Renovated, large windows, 4th floor"),
+      m("Your must-haves", 7, "Pet policy still to confirm"),
+    ],
+  },
+  "3": {
+    pros: ["Rooftop terrace for the dog", "Mezzanine works as an office", "Cheapest of the three"],
+    cons: ["55 m² is tight", "Terrace may be shared"],
+    metrics: [
+      m("Price & value", 9, "€590, lowest rent on the shortlist"),
+      m("Space & layout", 6, "55 m² loft with a mezzanine"),
+      m("Location", 8, "On Varnava Square, lively but central"),
+      m("Condition & light", 8, "Top floor, light from the terrace"),
+      m("Your must-haves", 8, "Pets allowed, bright, office nook"),
+    ],
+  },
+  "4": {
+    pros: [
+      "40 m² private terrace",
+      "Pet approval written in the listing",
+      "Parking spot available",
+    ],
+    cons: ["Most expensive option", "Parking may cost extra"],
+    metrics: [
+      m("Price & value", 6, "€15.8/m², premium Kolonaki pricing"),
+      m("Space & layout", 9, "92 m² penthouse with fireplace"),
+      m("Location", 10, "3 minutes to Evangelismos metro"),
+      m("Condition & light", 9, "Penthouse, Lycabettus views"),
+      m("Your must-haves", 10, "Private terrace and pets allowed"),
+    ],
+  },
+  "5": {
+    pros: ["Acropolis view from the terrace", "Quiet pedestrian street", "Fully furnished"],
+    cons: ["Pet policy unconfirmed", "Furnished: less room for your own things"],
+    metrics: [
+      m("Price & value", 7, "€16.2/m², the view carries a premium"),
+      m("Space & layout", 7, "74 m² top floor"),
+      m("Location", 9, "Koukaki, walk to the Acropolis"),
+      m("Condition & light", 9, "Top floor with open views"),
+      m("Your must-haves", 7, "Terrace yes, pets to confirm"),
+    ],
+  },
+  "6": {
+    pros: ["Best value per m²", "Dog park two blocks away", "High ceilings"],
+    cons: ["Livelier neighborhood at night", "Elevator not mentioned"],
+    metrics: [
+      m("Price & value", 9, "€14.4/m², cheapest of the penthouses"),
+      m("Space & layout", 7, "68 m² loft with terrace"),
+      m("Location", 7, "Near Strefi Hill, noisy evenings"),
+      m("Condition & light", 8, "5th floor, high ceilings"),
+      m("Your must-haves", 8, "Terrace and pets allowed"),
+    ],
+  },
+  "7": {
+    pros: [
+      "Utilities and fiber included",
+      "8-minute walk to the NTUA gate",
+      "Furnished with a desk",
+    ],
+    cons: ["32 m² studio", "Lease term may not follow the academic year"],
+    metrics: [
+      m("Price & value", 10, "Lowest real monthly cost, bills included"),
+      m("Space & layout", 6, "32 m² studio"),
+      m("Location", 10, "Walkable to campus"),
+      m("Condition & light", 7, "2nd floor, furnished"),
+      m("Your must-haves", 9, "Student budget, near campus"),
+    ],
+  },
+  "8": {
+    pros: ["Separate bedroom for a studio price", "Balcony", "One bus to campus"],
+    cons: ["Utilities probably extra", "Furniture not stated"],
+    metrics: [
+      m("Price & value", 8, "€10.4/m² for a one-bedroom"),
+      m("Space & layout", 8, "45 m² with a real bedroom"),
+      m("Location", 7, "12 minutes to campus on the 230"),
+      m("Condition & light", 7, "1st floor with balcony"),
+      m("Your must-haves", 8, "Under budget, near campus"),
+    ],
+  },
+  "9": {
+    pros: ["Cheapest safe option", "All bills included", "Quiet, students-only building"],
+    cons: ["Shared kitchen and bathroom", "18 m² room"],
+    metrics: [
+      m("Price & value", 9, "€330 with every bill included"),
+      m("Space & layout", 5, "18 m² room in a shared flat"),
+      m("Location", 7, "15-minute walk to campus"),
+      m("Condition & light", 7, "3rd floor, quiet building"),
+      m("Your must-haves", 7, "Budget fits, privacy is limited"),
+    ],
+  },
+};
+
+/** Interior photos from Unsplash (free license), bundled in public/demo so the demo works offline. */
+const PHOTOS: Record<string, number[]> = {
+  "1": [0, 22, 4],
+  "2": [3, 9, 26],
+  "3": [20, 16, 10],
+  "4": [2, 25, 21],
+  "5": [13, 17, 5],
+  "6": [23, 12, 27],
+  "7": [14, 10, 1],
+  "8": [5, 15, 4],
+  "9": [26, 21, 3],
+};
+
+const photo = (n: number) => `/demo/photo-${String(n).padStart(2, "0")}.jpg`;
+
+function withInsights(p: Property): Property {
+  const id = /[?&]demo=(\d+)/.exec(p.url)?.[1];
+  if (!id) return p;
+  return { ...p, ...INSIGHTS[id], images: (PHOTOS[id] ?? []).map(photo) };
+}
+
 const DEMO_SETS = [PENTHOUSE, STUDENT, PANGRATI];
 
 export function demoResult(query: string, notice: string): SearchResult {
@@ -222,7 +366,7 @@ export function demoResult(query: string, notice: string): SearchResult {
   return {
     query,
     reply: set.reply,
-    properties: set.properties,
+    properties: set.properties.map(withInsights),
     stats: set.stats,
     source: "demo",
     notice,

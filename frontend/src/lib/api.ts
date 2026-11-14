@@ -1,6 +1,13 @@
-import { demoResult } from "./demo";
 import { propertyTitle } from "./format";
-import type { EmailOutcome, Profile, Property, SearchResult, SearchStats } from "./types";
+import { readNdjson, type AgentEvent } from "./trace";
+import type {
+  EmailOutcome,
+  EmailState,
+  Profile,
+  Property,
+  SearchResult,
+  SearchStats,
+} from "./types";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(
   /\/$/,
@@ -24,6 +31,14 @@ function normalizeProperty(p: Property): Property {
     ...p,
     features: Array.isArray(p.features) ? p.features : [],
     missing_info: Array.isArray(p.missing_info) ? p.missing_info : [],
+    pros: Array.isArray(p.pros) ? p.pros : [],
+    images: Array.isArray(p.images)
+      ? p.images.filter((u): u is string => typeof u === "string" && /^(https?:)?\/\//.test(u))
+      : [],
+    cons: Array.isArray(p.cons) ? p.cons : [],
+    metrics: Array.isArray(p.metrics)
+      ? p.metrics.filter((m) => m && typeof m.name === "string" && Number.isFinite(Number(m.score)))
+      : [],
     agentic_score: Number(p.agentic_score) || 0,
     score_reason: p.score_reason || "",
   };
@@ -55,7 +70,7 @@ export function synthesizeReply(properties: Property[]): string {
  * Accepts the current backend shape (`PropertyDetails[]`) and a richer future shape
  * (`{ reply, properties, stats }`).
  */
-function normalize(query: string, data: unknown): SearchResult {
+export function normalize(query: string, data: unknown): SearchResult {
   const obj = (Array.isArray(data) ? { properties: data } : (data ?? {})) as {
     reply?: unknown;
     properties?: unknown;
@@ -70,7 +85,11 @@ function normalize(query: string, data: unknown): SearchResult {
   const properties = list
     .filter(isProperty)
     .map(normalizeProperty)
-    .sort((a, b) => b.agentic_score - a.agentic_score)
+    .sort(
+      (a, b) =>
+        Number(a.scam_verdict === "POSSIBLY_SCAM") - Number(b.scam_verdict === "POSSIBLY_SCAM") ||
+        b.agentic_score - a.agentic_score,
+    )
     .slice(0, 3);
   return {
     query,
@@ -81,88 +100,175 @@ function normalize(query: string, data: unknown): SearchResult {
   };
 }
 
-/** Calls POST /api/search; falls back to demo data if the backend is unreachable or errors. */
-export async function searchProperties(
+export class BackendUnavailable extends Error {}
+
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === "string") return body.detail;
+  } catch {
+    /* non-JSON error body */
+  }
+  return `HTTP ${res.status}`;
+}
+
+/**
+ * Streams the search agent (POST /api/search/stream). Progress events go to `onEvent` as
+ * they arrive; resolves with the final result. Throws `BackendUnavailable` (offline, HTTP
+ * error, timeout, pipeline error) so the caller can fall back to demo data, or rethrows the
+ * abort if `signal` was aborted by the user.
+ */
+export async function streamSearch(
   query: string,
   profile: Profile,
-  signal?: AbortSignal,
+  signal: AbortSignal,
+  onEvent: (event: AgentEvent) => void,
 ): Promise<SearchResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, SEARCH_TIMEOUT_MS);
   const onAbort = () => controller.abort();
-  signal?.addEventListener("abort", onAbort);
+  signal.addEventListener("abort", onAbort);
 
   try {
-    const res = await fetch(`${API_BASE}/api/search`, {
+    const res = await fetch(`${API_BASE}/api/search/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ request: buildRequest(query, profile) }),
       signal: controller.signal,
     });
     if (!res.ok) {
-      let detail = `HTTP ${res.status}`;
-      try {
-        const body = await res.json();
-        if (typeof body?.detail === "string") detail = body.detail;
-      } catch {
-        /* non-JSON error body */
-      }
-      return demoResult(query, `The agent backend returned an error (${detail}).`);
+      throw new BackendUnavailable(
+        `The agent backend returned an error (${await errorDetail(res)}).`,
+      );
     }
-    return normalize(query, await res.json());
+    let result: SearchResult | null = null;
+    let failure: string | null = null;
+    await readNdjson(res, (event) => {
+      if (event.type === "result") result = normalize(query, event);
+      else if (event.type === "error") failure = event.detail || "unknown error";
+      else onEvent(event);
+    });
+    if (failure) throw new BackendUnavailable(`The search agent stopped (${failure}).`);
+    if (!result) throw new BackendUnavailable("The search agent stopped before finishing.");
+    return result;
   } catch (err) {
-    if (signal?.aborted) throw err;
-    const reason = controller.signal.aborted
-      ? "The agent backend timed out."
-      : "The agent backend is offline.";
-    return demoResult(query, reason);
+    if (signal.aborted) throw err;
+    if (err instanceof BackendUnavailable) throw err;
+    throw new BackendUnavailable(
+      timedOut ? "The agent backend timed out." : "The agent backend is offline.",
+    );
   } finally {
     clearTimeout(timeout);
-    signal?.removeEventListener("abort", onAbort);
+    signal.removeEventListener("abort", onAbort);
   }
 }
 
-const DEMO_URL = /[?&]demo=/;
+export const DEMO_URL = /[?&]demo=/;
+
+export function isDemoListing(property: Property): boolean {
+  return DEMO_URL.test(property.url);
+}
 
 interface OutreachAttempt {
   channel: string;
   status: "sent" | "dry_run" | "skipped" | "failed";
   to?: string | null;
   detail?: string | null;
+  subject?: string | null;
+  body?: string | null;
 }
 
-/**
- * Asks the landlord for a viewing by e-mail (the only outreach channel) via
- * POST /api/outreach/send. Whether it is really sent, and to whom, is decided by the server
- * (OUTREACH_DRY_RUN, OUTREACH_OVERRIDE_EMAIL). Never throws.
- */
-export async function requestViewing(property: Property, profile: Profile): Promise<EmailOutcome> {
-  if (DEMO_URL.test(property.url)) return { state: "demo" };
-  if (!property.agent_email) {
-    return { state: "no_contact", detail: "The listing has no e-mail address." };
+/** Maps the outreach agent's final `result` event to the outcome stored on the viewing. */
+function toOutcome(result: Record<string, unknown>, demo: boolean): EmailOutcome {
+  const attempts = (Array.isArray(result.attempts) ? result.attempts : []) as OutreachAttempt[];
+  const windows = Array.isArray(result.viewing_windows)
+    ? (result.viewing_windows as string[])
+    : undefined;
+  const email = attempts.find((a) => a.channel === "email");
+  if (!email) {
+    return {
+      state: result.status === "failed" ? "failed" : "no_contact",
+      detail: "No e-mail address on the listing.",
+      windows,
+    };
   }
+  const state: EmailState =
+    email.status === "skipped"
+      ? "no_contact"
+      : email.status === "dry_run" && demo
+        ? "demo"
+        : email.status;
+  return {
+    state,
+    to: email.to,
+    detail: email.detail,
+    windows,
+    subject: email.subject,
+    body: email.body,
+  };
+}
+
+export type OutreachEvent = AgentEvent | { type: "outcome"; outcome: EmailOutcome };
+
+/**
+ * Streams the outreach agent for one listing (POST /api/outreach/stream): it checks the
+ * user's calendar, verifies the landlord's e-mail, drafts and sends the viewing request.
+ * Whether it is really sent, and to whom, is decided by the server (OUTREACH_DRY_RUN,
+ * OUTREACH_OVERRIDE_EMAIL); demo listings are always a dry run. Throws `BackendUnavailable`.
+ */
+export async function streamOutreach(
+  property: Property,
+  profile: Profile,
+  questions: string[] | undefined,
+  signal: AbortSignal,
+  onEvent: (event: OutreachEvent) => void,
+): Promise<void> {
+  const demo = isDemoListing(property);
+  let res: Response;
   try {
-    const res = await fetch(`${API_BASE}/api/outreach/send`, {
+    res = await fetch(`${API_BASE}/api/outreach/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user: { name: profile.name.trim(), email: profile.email.trim() || null },
         properties: [property],
         channels: ["email"],
+        calendar_url: profile.calendarUrl?.trim() || null,
+        questions: questions ?? null,
+        demo,
       }),
+      signal,
     });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const detail = typeof body?.detail === "string" ? body.detail : `HTTP ${res.status}`;
-      return { state: "failed", detail };
-    }
-    const attempt: OutreachAttempt | undefined = body?.results?.[0]?.attempts?.find(
-      (a: OutreachAttempt) => a.channel === "email",
-    );
-    if (!attempt) return { state: "failed", detail: "E-mail outreach is disabled on the server." };
-    const state = attempt.status === "skipped" ? "no_contact" : attempt.status;
-    return { state, to: attempt.to, detail: attempt.detail };
-  } catch {
-    return { state: "failed", detail: "The agent backend is offline." };
+  } catch (err) {
+    if (signal.aborted) throw err;
+    throw new BackendUnavailable("The agent backend is offline.");
   }
+  if (!res.ok) {
+    throw new BackendUnavailable(
+      `The agent backend returned an error (${await errorDetail(res)}).`,
+    );
+  }
+  let finished = false;
+  let failure: string | null = null;
+  try {
+    await readNdjson(res, (event) => {
+      if (event.type === "result") {
+        finished = true;
+        onEvent({ type: "outcome", outcome: toOutcome(event, demo) });
+      } else if (event.type === "error") {
+        failure = event.detail || "unknown error";
+      } else {
+        onEvent(event);
+      }
+    });
+  } catch (err) {
+    if (signal.aborted) throw err;
+    throw new BackendUnavailable("The connection to the outreach agent dropped.");
+  }
+  if (failure) throw new BackendUnavailable(`The outreach agent stopped (${failure}).`);
+  if (!finished) throw new BackendUnavailable("The outreach agent stopped before finishing.");
 }

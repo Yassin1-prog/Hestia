@@ -35,6 +35,12 @@ export function matchPercent(score: number): number {
   return Math.round(Math.max(0, Math.min(10, score)) * 10);
 }
 
+/** 0:42 / 1:05 */
+export function formatDuration(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function scoreTier(score: number): "gold" | "emerald" | "muted" {
   if (score >= 9) return "gold";
   if (score >= 7) return "emerald";

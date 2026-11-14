@@ -12,4 +12,4 @@ Write-Host " Dashboard UI:  http://localhost:8000" -ForegroundColor Green
 Write-Host " OpenAPI Docs:  http://localhost:8000/docs" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+uv run python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
