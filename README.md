@@ -17,7 +17,7 @@ Gen-AI-Summit/
 │   ├── decision.py          # Oumi Iris scam decision gate (see OUMI_IRIS_INTEGRATION.md)
 │   └── outreach/            # Contact extraction + Twilio SMS / Resend e-mail (see OUTREACH.md)
 ├── frontend/
-│   └── src/app/page.tsx     # Minimal Next.js UI for running goals and viewing steps
+│   └── src/                 # Hestia UI: prompt, agent feed, AI property cards (see FRONTEND.md)
 ├── tests/
 │   ├── test_decision.py     # Oumi Iris decision tests
 │   └── test_outreach.py     # Outreach extraction / messaging / API tests
@@ -51,6 +51,7 @@ npm run dev
 ```
 
 * Web UI: `http://localhost:3000`
+* Works without the backend too (falls back to demo data). Details in [`FRONTEND.md`](./FRONTEND.md).
 
 ---
 
