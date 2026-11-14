@@ -4,7 +4,7 @@
 
 Checks: dependencies, .env presence, secrets not leaking into .env.example, outreach safety
 settings, Twilio credentials / sender number / trial restrictions (via read-only GET calls),
-and the search-agent keys. Exits non-zero if the SMS outreach path is not ready.
+and the search-agent keys. Exits non-zero if an enabled outreach channel is not ready.
 """
 
 from __future__ import annotations
@@ -243,7 +243,7 @@ def main() -> int:
     for status, check, detail in results:
         print(f"{icons[status]} {check}" + (f": {detail}" if detail else ""))
     failed = [r for r in results if r[0] == "FAIL"]
-    print(f"\n{'NOT READY' if failed else 'READY'} for SMS outreach ({len(failed)} failing checks)")
+    print(f"\n{'NOT READY' if failed else 'READY'} for outreach ({len(failed)} failing checks)")
     return 1 if failed else 0
 
 

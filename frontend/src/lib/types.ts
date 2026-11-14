@@ -40,16 +40,33 @@ export interface SearchResult {
 export interface Profile {
   name: string;
   email: string;
-  phone: string;
+}
+
+/** State of the viewing-request e-mail to the landlord (POST /api/outreach/send). */
+export type EmailState =
+  | "sending"
+  | "sent"
+  | "dry_run"
+  | "no_contact"
+  | "failed"
+  /** Demo listing: nothing is sent. */
+  | "demo";
+
+export interface EmailOutcome {
+  state: EmailState;
+  /** Actual recipient after any server-side override (OUTREACH_OVERRIDE_EMAIL). */
+  to?: string | null;
+  detail?: string | null;
 }
 
 export interface Viewing {
   property: Property;
   requestedAt: string;
+  /** Missing on viewings saved before e-mail outreach existed. */
+  email?: EmailOutcome;
 }
 
 export const EMPTY_PROFILE: Profile = {
   name: "",
   email: "",
-  phone: "",
 };

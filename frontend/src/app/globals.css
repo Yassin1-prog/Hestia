@@ -1403,6 +1403,29 @@ a.contact-phone:hover {
   animation: pulse 2.4s ease-in-out infinite;
 }
 
+.status-ok .status-dot {
+  background: var(--emerald);
+  box-shadow: none;
+  animation: none;
+}
+
+.status-muted .status-dot {
+  background: var(--muted);
+  box-shadow: none;
+  animation: none;
+}
+
+.status-warn .status-dot,
+.status-error .status-dot {
+  background: var(--danger);
+  box-shadow: none;
+  animation: none;
+}
+
+.status-error {
+  color: var(--danger);
+}
+
 .mini-actions {
   margin-top: 12px;
   display: flex;

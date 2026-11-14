@@ -32,12 +32,14 @@ OutreachStatus = Literal["contacted", "dry_run", "no_contact", "failed"]
 
 
 ALL_CHANNELS: tuple[Channel, ...] = ("sms", "email")
+DEFAULT_CHANNELS: tuple[Channel, ...] = ("email",)
 
 
 class OutreachSettings(BaseModel):
     dry_run: bool = True
-    # Channels enabled on this server (OUTREACH_CHANNELS). Disable one with e.g. OUTREACH_CHANNELS=sms.
-    channels: list[Channel] = Field(default_factory=lambda: list(ALL_CHANNELS))
+    # Channels enabled on this server (OUTREACH_CHANNELS). E-mail only by default: SMS is disabled
+    # for now (the Twilio adapter is kept; opt back in with OUTREACH_CHANNELS=sms,email).
+    channels: list[Channel] = Field(default_factory=lambda: list(DEFAULT_CHANNELS))
     override_phone: Optional[str] = None
     override_email: Optional[str] = None
     max_concurrency: int = 5
@@ -47,7 +49,7 @@ class OutreachSettings(BaseModel):
         def env(name: str) -> Optional[str]:
             return os.getenv(name, "").strip() or None
 
-        requested = (env("OUTREACH_CHANNELS") or "sms,email").lower().replace(" ", "").split(",")
+        requested = (env("OUTREACH_CHANNELS") or ",".join(DEFAULT_CHANNELS)).lower().replace(" ", "").split(",")
         return cls(
             dry_run=(env("OUTREACH_DRY_RUN") or "true").lower() not in {"0", "false", "no", "off"},
             channels=[c for c in ALL_CHANNELS if c in requested],

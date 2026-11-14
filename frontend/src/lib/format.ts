@@ -40,7 +40,3 @@ export function scoreTier(score: number): "gold" | "emerald" | "muted" {
   if (score >= 7) return "emerald";
   return "muted";
 }
-
-export function telHref(phone: string): string {
-  return `tel:${phone.replace(/[^\d+]/g, "")}`;
-}

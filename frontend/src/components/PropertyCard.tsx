@@ -7,7 +7,6 @@ import {
   Heart,
   Mail,
   MapPin,
-  Phone,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -20,7 +19,6 @@ import {
   propertyTitle,
   scoreLabel,
   scoreTier,
-  telHref,
 } from "@/lib/format";
 import type { Property } from "@/lib/types";
 
@@ -113,20 +111,18 @@ export function PropertyCard({
 
       <footer className="card-foot">
         <div className="contact">
-          {p.agent_phone ? (
-            <a className="contact-phone" href={telHref(p.agent_phone)} title="Call agent">
-              <Phone size={14} strokeWidth={1.75} />
-              {p.agent_phone}
-            </a>
-          ) : p.agent_email ? (
-            <a className="contact-phone" href={`mailto:${p.agent_email}`} title="Email agent">
+          {p.agent_email ? (
+            <a className="contact-phone" href={`mailto:${p.agent_email}`} title="E-mail agent">
               <Mail size={14} strokeWidth={1.75} />
               {p.agent_email}
             </a>
           ) : (
-            <span className="contact-phone contact-missing">
-              <Phone size={14} strokeWidth={1.75} />
-              No contact listed
+            <span
+              className="contact-phone contact-missing"
+              title="The agent can only reach landlords by e-mail"
+            >
+              <Mail size={14} strokeWidth={1.75} />
+              No e-mail listed
             </span>
           )}
           {p.agent_name && <span className="contact-name">{p.agent_name}</span>}

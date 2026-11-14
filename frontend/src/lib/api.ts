@@ -1,6 +1,6 @@
 import { demoResult } from "./demo";
 import { propertyTitle } from "./format";
-import type { Profile, Property, SearchResult, SearchStats } from "./types";
+import type { EmailOutcome, Profile, Property, SearchResult, SearchStats } from "./types";
 
 export const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(
   /\/$/,
@@ -47,7 +47,7 @@ export function synthesizeReply(properties: Property[]): string {
   if (question) {
     parts.push(`I will also ask the landlords what the listings leave open, such as "${question}"`);
   }
-  parts.push("Approve a viewing on any card and I will contact the landlord for you.");
+  parts.push("Approve a viewing on any card and I will e-mail the landlord for you.");
   return parts.join(" ");
 }
 
@@ -119,5 +119,50 @@ export async function searchProperties(
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+const DEMO_URL = /[?&]demo=/;
+
+interface OutreachAttempt {
+  channel: string;
+  status: "sent" | "dry_run" | "skipped" | "failed";
+  to?: string | null;
+  detail?: string | null;
+}
+
+/**
+ * Asks the landlord for a viewing by e-mail (the only outreach channel) via
+ * POST /api/outreach/send. Whether it is really sent, and to whom, is decided by the server
+ * (OUTREACH_DRY_RUN, OUTREACH_OVERRIDE_EMAIL). Never throws.
+ */
+export async function requestViewing(property: Property, profile: Profile): Promise<EmailOutcome> {
+  if (DEMO_URL.test(property.url)) return { state: "demo" };
+  if (!property.agent_email) {
+    return { state: "no_contact", detail: "The listing has no e-mail address." };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/outreach/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user: { name: profile.name.trim(), email: profile.email.trim() || null },
+        properties: [property],
+        channels: ["email"],
+      }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const detail = typeof body?.detail === "string" ? body.detail : `HTTP ${res.status}`;
+      return { state: "failed", detail };
+    }
+    const attempt: OutreachAttempt | undefined = body?.results?.[0]?.attempts?.find(
+      (a: OutreachAttempt) => a.channel === "email",
+    );
+    if (!attempt) return { state: "failed", detail: "E-mail outreach is disabled on the server." };
+    const state = attempt.status === "skipped" ? "no_contact" : attempt.status;
+    return { state, to: attempt.to, detail: attempt.detail };
+  } catch {
+    return { state: "failed", detail: "The agent backend is offline." };
   }
 }

@@ -1,6 +1,7 @@
 /**
  * Fallback data so the UI stays demoable when the FastAPI backend is offline or misconfigured.
- * Phone numbers and listing links are placeholders, not real landlords.
+ * E-mail addresses (example.com) and listing links are placeholders, not real landlords.
+ * Approving a demo listing never sends an e-mail.
  */
 import type { Property, SearchResult, SearchStats } from "./types";
 
@@ -31,8 +32,8 @@ const PANGRATI: DemoSet = {
       floor: "3rd",
       features: ["South-facing balcony", "Pets allowed", "Second bedroom", "Natural gas heating"],
       agent_name: "Eleni Markou",
-      agent_phone: "+30 690 000 0142",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "eleni.markou@example.com",
       missing_info: [
         "Is there a pet deposit for a large dog?",
         "Are building fees included in the rent?",
@@ -52,8 +53,8 @@ const PANGRATI: DemoSet = {
       floor: "4th",
       features: ["Renovated 2023", "Large windows", "Pets negotiable", "Elevator"],
       agent_name: "Nikos Vlachos",
-      agent_phone: "+30 690 000 0187",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "nikos.vlachos@example.com",
       missing_info: [
         "Would the owner accept a labrador?",
         "Is the living room large enough for a desk?",
@@ -73,8 +74,8 @@ const PANGRATI: DemoSet = {
       floor: "5th",
       features: ["Rooftop terrace", "Pets allowed", "Mezzanine office nook", "A/C"],
       agent_name: "Varnava Homes",
-      agent_phone: "+30 690 000 0119",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "varnava.homes@example.com",
       missing_info: ["Is the terrace private or shared?", "When is it available from?"],
       agentic_score: 8.1,
       score_reason:
@@ -103,8 +104,8 @@ const PENTHOUSE: DemoSet = {
       floor: "6th (penthouse)",
       features: ["40 m² private terrace", "Pets allowed", "Fireplace", "Parking spot"],
       agent_name: "Maria Kosta",
-      agent_phone: "+30 690 000 0231",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "maria.kosta@example.com",
       missing_info: ["Is the parking spot included in the rent?", "Minimum lease term?"],
       agentic_score: 9.3,
       score_reason:
@@ -121,8 +122,8 @@ const PENTHOUSE: DemoSet = {
       floor: "5th",
       features: ["Acropolis view", "Terrace", "Pets negotiable", "Fully furnished"],
       agent_name: "Acropolis Living",
-      agent_phone: "+30 690 000 0256",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "acropolis.living@example.com",
       missing_info: ["Would the owner accept a medium-sized dog?"],
       agentic_score: 8.6,
       score_reason:
@@ -138,8 +139,8 @@ const PENTHOUSE: DemoSet = {
       floor: "5th",
       features: ["Terrace", "Pets allowed", "High ceilings", "Near Strefi Hill park"],
       agent_name: "Kostas Dimou",
-      agent_phone: "+30 690 000 0274",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "kostas.dimou@example.com",
       missing_info: ["Is there an elevator?", "Are building fees included?"],
       agentic_score: 7.9,
       score_reason:
@@ -168,8 +169,8 @@ const STUDENT: DemoSet = {
       floor: "2nd",
       features: ["Utilities included", "Furnished", "Fiber internet", "Desk and bookshelf"],
       agent_name: "Giorgos Papas",
-      agent_phone: "+30 690 000 0318",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "giorgos.papas@example.com",
       missing_info: ["Can the lease follow the academic year?", "Is a guarantor required?"],
       agentic_score: 9.1,
       score_reason:
@@ -186,8 +187,8 @@ const STUDENT: DemoSet = {
       floor: "1st",
       features: ["Separate bedroom", "Balcony", "Bus 230 to campus", "Natural gas"],
       agent_name: "Goudi Rentals",
-      agent_phone: "+30 690 000 0342",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "goudi.rentals@example.com",
       missing_info: ["Are utilities included?", "Is it furnished?"],
       agentic_score: 8.4,
       score_reason:
@@ -203,8 +204,8 @@ const STUDENT: DemoSet = {
       floor: "3rd",
       features: ["Room in 3-bed flat", "All bills included", "Students only", "Quiet building"],
       agent_name: "Dimitra Lazou",
-      agent_phone: "+30 690 000 0365",
-      agent_email: null,
+      agent_phone: null,
+      agent_email: "dimitra.lazou@example.com",
       missing_info: ["Who are the current flatmates?", "Is cleaning shared or included?"],
       agentic_score: 7.6,
       score_reason:

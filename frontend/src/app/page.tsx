@@ -17,11 +17,12 @@ import { Hero } from "@/components/Hero";
 import { FavoritesPanel, SettingsPanel, ViewingsPanel } from "@/components/Panels";
 import { PropertyCard } from "@/components/PropertyCard";
 import { TopNav, type PanelKey } from "@/components/TopNav";
-import { searchProperties } from "@/lib/api";
+import { requestViewing, searchProperties } from "@/lib/api";
 import { propertyTitle } from "@/lib/format";
 import { usePersistentState } from "@/lib/storage";
 import {
   EMPTY_PROFILE,
+  type EmailOutcome,
   type Profile,
   type Property,
   type SearchResult,
@@ -111,13 +112,41 @@ export default function HomePage() {
     );
   }, []);
 
+  /** E-mails the landlord (the only outreach channel) and records the outcome on the viewing. */
+  const sendViewingEmail = useCallback(
+    async (property: Property) => {
+      const setEmail = (email: EmailOutcome) =>
+        setViewings((v) => v.map((x) => (x.property.url === property.url ? { ...x, email } : x)));
+      setEmail({ state: "sending" });
+      const outcome = await requestViewing(property, profile);
+      setEmail(outcome);
+      const title = propertyTitle(property);
+      notify(
+        {
+          sending: "",
+          sent: `Agent e-mailed the landlord: ${title}. Added to Contact Requests.`,
+          dry_run: `Added to Contact Requests: ${title}. E-mail composed but not sent (server dry run).`,
+          demo: `Added to Contact Requests: ${title}. Demo listing, so no e-mail was sent.`,
+          no_contact: `Added to Contact Requests: ${title}. The listing has no e-mail address to contact.`,
+          failed: `Could not e-mail the landlord for ${title}. Retry from Contact Requests.`,
+        }[outcome.state],
+      );
+    },
+    [profile, setViewings, notify],
+  );
+
   const approve = useCallback(
     (property: Property) => {
       if (approvedUrls.has(property.url)) return;
+      if (!profile.name.trim() || !profile.email.trim()) {
+        setPanel("settings");
+        notify("Add your name and e-mail first, so the landlord can reply to you.");
+        return;
+      }
       setViewings((v) => [{ property, requestedAt: new Date().toISOString() }, ...v]);
-      notify(`Agent will contact landlord: ${propertyTitle(property)}. Added to Contact Requests.`);
+      void sendViewingEmail(property);
     },
-    [approvedUrls, setViewings, notify],
+    [approvedUrls, profile, setViewings, notify, sendViewingEmail],
   );
 
   const toggleFavorite = useCallback(
@@ -273,6 +302,7 @@ export default function HomePage() {
       >
         <ViewingsPanel
           viewings={viewings}
+          onRetry={(p) => void sendViewingEmail(p)}
           onRemove={(url) => setViewings((v) => v.filter((x) => x.property.url !== url))}
         />
       </Drawer>

@@ -215,7 +215,7 @@ def test_dry_run_sends_nothing_and_reports_per_channel_status():
 
 def test_disabled_channel_is_dropped_even_if_requested(monkeypatch):
     monkeypatch.delenv("OUTREACH_CHANNELS", raising=False)
-    assert OutreachSettings.from_env().channels == ["sms", "email"]  # Both on by default.
+    assert OutreachSettings.from_env().channels == ["email"]  # SMS is off by default.
 
     monkeypatch.setenv("OUTREACH_CHANNELS", "sms")
     settings = OutreachSettings.from_env()
@@ -309,7 +309,7 @@ def test_missing_credentials_fail_with_actionable_message():
         async with httpx.AsyncClient(transport=httpx.MockTransport(_no_http)) as client:
             return await run_outreach(
                 [LISTING_MOBILE_AND_EMAIL], CTX, ["sms"],
-                settings=OutreachSettings(dry_run=False),
+                settings=OutreachSettings(dry_run=False, channels=["sms"]),  # SMS is opt-in.
                 sms=TwilioSmsSender(None, None), email=ResendEmailSender(None, None), client=client,
             )
 
