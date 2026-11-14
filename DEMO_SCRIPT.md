@@ -7,7 +7,7 @@
 ## `0:00 – 0:35` | The Hook & Problem (35 sec)
 > *"Anyone who has searched for an apartment in a major city knows the workflow is broken. You start with dozens of browser tabs open across portals like Spitogatos, classifieds, and social groups. Half the listings are duplicates, the most attractive low-priced ads are often rental scams, critical details like pet policies or building fees are missing, and once you finally shortlist a few places, you spend hours playing phone, SMS, and email tag with landlords just to ask basic questions and book a viewing.*  
 >
-> *A standard chatbot can't solve this—it just summarizes text. We built an end-to-end autonomous housing platform that searches across multiple providers, blocks scams using a dedicated decision model, ranks your true matches, and deploys one autonomous outreach agent per landlord to verify details and schedule viewings for you."*
+> *A standard chatbot can't solve this—it just summarizes text. We built an end-to-end autonomous housing platform that searches across multiple providers, ranks your top matches, runs a dedicated decision model post-ranking to intercept high-scoring scams, and deploys one autonomous outreach agent per landlord to verify details and schedule viewings for you."*
 
 ---
 
@@ -19,13 +19,13 @@
 
 ---
 
-## `1:15 – 1:55` | Stage 2: Oumi `Iris` Scam Decision Model & Feature Ranker (40 sec)
-- **[On Screen]:** Show the quarantined/blocked scam listings drawer alongside the ranked, verified-safe shortlist.
-> *"Before we rank anything for the user, every listing passes through our **Scam Decision Gate powered by Oumi's `Iris` Decision Model**. `Iris` evaluates each property against structured fraud signals—like unrealistic price-per-square-meter anomalies, reused or stolen listing photos, metadata contradictions, and advance-fee red flags in the text.*  
+## `1:15 – 1:55` | Stage 2: Feature Ranker & Post-Ranker Oumi `Iris` Scam Decision Model (40 sec)
+- **[On Screen]:** Show the Feature Ranker scores alongside the prominent **Oumi `Iris` Scam Decision Gate** intercepting what would have been the `#1` match as **`POSSIBLY_SCAM`**, complete with 4 forensic probability bars and the verified `SAFE` shortlist.
+> *"Next, our Feature Ranker scores all deduplicated listings against the user's constraints, detects what details are missing—like pet policies or building charges—and narrows the pool to the Top-K finalists.*  
 >
-> *Suspicious listings are automatically quarantined into a transparent 'Blocked Scams' section with exact reasons why they were rejected, so the user never wastes time—or risks money—contacting a scammer.*  
+> *But here is the trap with real estate portals: **scammers design bait listings to rank #1** by stuffing luxury keywords at half the market price. So before the user ever sees or contacts a landlord, our Top-K ranked results pass in parallel through **Oumi's `Iris` Decision Model**.*  
 >
-> *Only the verified-safe properties move to our Feature Ranker. In addition to scoring how well each home matches the prompt, the Ranker detects **what important details are missing from the listing** and turns them into an automatic question checklist for our outreach agents."*
+> *`Iris` scores every candidate across price-per-square-meter anomalies, stolen photos, metadata contradictions, and advance-fee red flags, outputting a crisp **`SAFE`** or **`POSSIBLY_SCAM`** verdict with granular forensic probabilities. Look at the screen: the apartment that ranked #1 on raw features was flagged at over 95% scam risk and quarantined immediately—promoting only truly verified `SAFE` homes for the user to approve."*
 
 ---
 
