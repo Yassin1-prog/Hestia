@@ -1,21 +1,27 @@
-import React from "react";
+import type { Metadata, Viewport } from "next";
+import { Inter, Manrope } from "next/font/google";
+import type { ReactNode } from "react";
 
-export const metadata = {
-  title: "GENAI Summit — Proactive Agent Mission Control",
-  description: "Next.js + FastAPI Proactive End-to-End Agent Starter",
+import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope", display: "swap" });
+
+export const metadata: Metadata = {
+  title: "Hestia · Autonomous Housing Agent",
+  description:
+    "Describe the home you want. The agent searches listings, screens scams, ranks the best matches and arranges viewings.",
 };
 
-const bodyStyle: React.CSSProperties = {
-  margin: 0,
-  backgroundColor: "#090d16",
-  color: "#f1f5f9",
-  fontFamily: "system-ui, sans-serif",
+export const viewport: Viewport = {
+  themeColor: "#07080a",
+  colorScheme: "dark",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body style={bodyStyle}>{children}</body>
+    <html lang="en" className={`${inter.variable} ${manrope.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

@@ -1,0 +1,93 @@
+# Frontend: Hestia, the autonomous housing agent UI
+
+Next.js 15 (App Router, React 19) single-page app in [`frontend/`](./frontend). It calls the FastAPI
+backend at `POST http://localhost:8000/api/search` and falls back to realistic demo data if the
+backend is offline, errors or times out. That keeps the live demo safe.
+
+## Run it locally
+
+```powershell
+# 1. Backend (optional; without it the UI runs on demo data)
+uv run uvicorn backend.main:app --reload --port 8000
+
+# 2. Frontend
+cd frontend
+npm install
+npm run dev          # http://localhost:3000
+```
+
+Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` to point at a different backend. The default is
+`http://localhost:8000`. Next.js reads env files from `frontend/`, not the repo root.
+
+Checks (same as CI): `npm run typecheck`, `npm run build`, `npm run format:check`.
+
+## Screens
+
+| Area | What it does |
+| --- | --- |
+| **Top bar** | Logo and name on the left. **My Viewings**, **My Favorites** and **Settings/Profile** on the right open slide-in drawers. Counts show on the buttons. |
+| **Hero** | Large prompt textarea: Enter sends, Shift+Enter adds a new line. Below it are 4 quick-demo chips that run immediately, and a pill showing how many saved preferences will be attached. |
+| **Results (50/50)** | **Left, Agent Feed:** a step-by-step thought process, then the agent's conclusion typed out. Next come an overview of the top 3 (click one to scroll to its card) and an input for extra instructions, which re-runs the search with them appended. **Right:** skeleton cards while the agent works, then the AI Property Cards. |
+| **Property card** | Rank, location, title and facts. A large **score badge** shows `9.3/10` and `Match 93%`: gold for 9 and above, emerald for 7 and above. Feature tags and an Oumi scam-check badge (when `scam_verdict` is present) follow. A **"Why the agent picked it"** block with a star icon shows `score_reason`. The questions the agent will ask come from `missing_info`. At the bottom are the agent phone (`tel:` link) or email (`mailto:`), favorite and listing links, and **Approve Viewing**, which adds the property to My Viewings. |
+| **Settings/Profile** | Permanent preferences ("I have 2 cats", "Max budget €700") as removable chips, with one-click suggestions and an "attach to every search" toggle. Also the user's name, email and phone, which the outreach API needs later. |
+
+The app is locked to the viewport (`100dvh`, `overflow: hidden` on `html/body`) and only the panes and
+drawers scroll. Below 900px wide, the two panes stack and each scrolls on its own.
+
+## Backend contract
+
+- **Request:** `POST /api/search` with `{ "request": "<query>\n\nAlways respect these saved preferences: I have 2 cats; Max budget €700." }`.
+  The profile constraints are appended on the client, so the backend needs no changes.
+- **Response:** the current backend returns `PropertyDetails[]` (see `backend/agent.py`). The client also
+  accepts `{ reply, properties, stats: { scanned, rejected, rejectReason } }` if the backend later adds
+  them:
+  - **`reply`:** the agent's conclusion. Without it, the client builds one from the top results.
+  - **`stats`:** fills in the "Scanned 35 listings / Rejected 32 due to ..." lines.
+
+  Extra optional fields the cards display if present: `title`, `location`, `scam_verdict`
+  (`SAFE` | `POSSIBLY_SCAM`, from `backend/decision.py`).
+- **Fallback:** a network error, non-2xx status or 180 s timeout switches to demo data, with a notice in
+  the feed and a **Demo data** badge (it reads **Live data** otherwise). The 3 demo sets in
+  `src/lib/demo.ts` are chosen by keyword: Pangrati/Mets (default), central-Athens penthouse, and
+  student/NTUA. Their phone numbers and links are placeholders.
+
+## Decisions
+
+- **Thought process is client-paced.** `/api/search` is one blocking call with no streaming, so the
+  feed walks through the real pipeline stages of `run_search_pipeline` on a timer. It holds on
+  "Inspecting the shortlist" until the response arrives, then finishes. Demo data arrives instantly,
+  so it plays out at a readable pace (about 1 s per step). Cards appear only after the feed completes.
+  If the backend adds streaming (SSE) later, `STEPS` in `AgentFeed.tsx` is the one place to wire it in.
+- **Viewings, favorites and profile live in `localStorage`** (`hestia.*` keys). No backend
+  persistence exists yet, and the app works in memory if storage is blocked.
+- **Approve Viewing does not send anything yet.** It records the approval (the human-in-the-loop
+  gate). Wiring it to `POST /api/outreach/preview` and then `/api/outreach/send`, using the
+  profile's name, email and phone, is the natural next step (see [`OUTREACH.md`](./OUTREACH.md)).
+- **No UI framework, no emojis.** One hand-written stylesheet (`src/app/globals.css`) with design
+  tokens on `:root`, glass panels, and emerald/gold accents on near-black. Icons come from
+  `lucide-react`, fonts are Inter (body) and Manrope (display) via `next/font`, and motion respects
+  `prefers-reduced-motion`.
+
+## File map
+
+```text
+frontend/src/
+├── app/
+│   ├── layout.tsx         # fonts, metadata
+│   ├── page.tsx           # state: search lifecycle, drawers, viewings/favorites/profile, toasts
+│   ├── globals.css        # all styles (tokens, layout, cards, drawers, motion)
+│   └── icon.svg           # favicon
+├── components/
+│   ├── TopNav.tsx         # logo + drawer buttons
+│   ├── Hero.tsx           # prompt bar + quick chips
+│   ├── AgentFeed.tsx      # thought process, conclusion, overview, follow-up input
+│   ├── PropertyCard.tsx   # AI property card + skeleton
+│   ├── Drawer.tsx         # slide-in panel shell (Esc / backdrop to close)
+│   └── Panels.tsx         # My Viewings, My Favorites, Settings/Profile
+└── lib/
+    ├── api.ts             # POST /api/search, response normalizing, demo fallback
+    ├── demo.ts            # fallback data
+    ├── format.ts          # titles, prices, score helpers
+    ├── storage.ts         # usePersistentState (localStorage)
+    └── types.ts           # Property (mirrors PropertyDetails), Profile, Viewing, SearchResult
+```
