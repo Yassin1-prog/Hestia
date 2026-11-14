@@ -12,12 +12,15 @@ A lightweight **FastAPI (Python)** + **Next.js (React)** starter template built 
 Gen-AI-Summit/
 ├── .github/workflows/ci.yml # GitHub Actions CI (Ruff, Pytest, Prettier, Typecheck, Next build)
 ├── backend/
-│   ├── main.py              # FastAPI endpoints (/api/health, /api/agent/run)
-│   └── agent.py             # High-level ProactiveAgent loop + generic tool registry
+│   ├── main.py              # FastAPI endpoints (/api/health, /api/search, /api/outreach/*)
+│   ├── agent.py             # Search & ranking agent (Gemini + Firecrawl) → PropertyDetails
+│   ├── decision.py          # Oumi Iris scam decision gate (see OUMI_IRIS_INTEGRATION.md)
+│   └── outreach/            # Contact extraction + Twilio SMS / Resend e-mail (see OUTREACH.md)
 ├── frontend/
 │   └── src/app/page.tsx     # Minimal Next.js UI for running goals and viewing steps
 ├── tests/
-│   └── test_api.py          # FastAPI smoke tests
+│   ├── test_decision.py     # Oumi Iris decision tests
+│   └── test_outreach.py     # Outreach extraction / messaging / API tests
 ├── .env.example             # Environment variable template
 ├── .prettierrc              # Shared Prettier formatting rules
 ├── pyproject.toml           # Python dependencies & Ruff/Pytest config (managed via uv)
@@ -72,5 +75,4 @@ npm run dev
 ## How to Customize Tomorrow
 
 1. **Add your API keys** in `.env` (copied from `.env.example`).
-2. **Add tools** in `backend/agent.py` inside the `TOOLS` dictionary.
-3. **Wire your LLM** into `ProactiveAgent.run()` in `backend/agent.py`.
+2. **Outreach:** fill the `TWILIO_*` / `RESEND_*` placeholders and read [`OUTREACH.md`](./OUTREACH.md). Sending stays in dry-run until `OUTREACH_DRY_RUN=false`. Check your setup with `uv run python -m backend.check_env`.
