@@ -4,6 +4,7 @@ import { Check, ChevronDown, CircleAlert, LoaderCircle, Minus } from "lucide-rea
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { AgentSwarm } from "@/components/AgentSwarm";
+import { SiteLogo, SiteLogos } from "@/components/SiteLogo";
 import type { TraceItem, TraceStep } from "@/lib/trace";
 
 /** Delay between items when a finished step is reopened, so they replay one by one. */
@@ -44,7 +45,10 @@ function ItemList({
           style={replay ? { animationDelay: `${i * REPLAY_STAGGER_MS}ms` } : undefined}
         >
           <span className="step-item-mark" aria-hidden="true" />
-          <span className="step-item-text">{item.text}</span>
+          <span className="step-item-text">
+            {item.source && <SiteLogo source={item.source} size={14} className="step-item-logo" />}
+            {item.text}
+          </span>
         </li>
       ))}
       {running && (
@@ -84,7 +88,10 @@ function Step({ step, extra }: { step: TraceStep; extra?: ReactNode }) {
           disabled={running || !count}
         >
           <div>
-            <p className="step-title">{step.title}</p>
+            <p className="step-title-row">
+              <span className="step-title">{step.title}</span>
+              {step.sources && step.sources.length > 0 && <SiteLogos sources={step.sources} />}
+            </p>
             {step.detail && (
               // Keyed so a new detail fades in instead of snapping.
               <p className="step-detail" key={step.detail}>

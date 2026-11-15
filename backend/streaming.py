@@ -2,11 +2,17 @@
 
 Event shapes (shared by the search agent and the outreach agent):
 
-    {"type": "step",   "step": "scan", "status": "running", "title": "Scanning listings", "detail": "..."}
+    {"type": "step",   "step": "scan", "status": "running", "title": "Scanning listings", "detail": "...",
+                       "sources": ["spitogatos", "xe"]}
     {"type": "step",   "step": "scan", "status": "done" | "skipped" | "failed", "detail": "..."}
-    {"type": "log",    "step": "scan", "text": "Found 24 listings", "kind": "info" | "ok" | "warn"}
+    {"type": "log",    "step": "scan", "text": "Found 24 listings", "kind": "info" | "ok" | "warn",
+                       "source": "xe"}
     {"type": "agent",  "step": "inspect", "agent": "listing-1", "label": "Agent 1",
-                       "status": "running" | "done" | "failed", "detail": "...", "hub": "Orchestrator"}
+                       "status": "running" | "done" | "failed", "detail": "...", "hub": "Orchestrator",
+                       "source": "booking"}
+
+`source` / `sources` are optional: the site or service the step, line or agent works with
+(a key from backend/sources.py, or "google_calendar"); the UI shows its logo.
     {"type": "result", ...payload}
     {"type": "error",  "detail": "..."}
 
@@ -44,11 +50,19 @@ class StepReporter:
         if self._emit:
             self._emit(event)
 
-    def start(self, step: str, title: str, detail: Optional[str] = None) -> None:
-        self.event({"type": "step", "step": step, "status": "running", "title": title, "detail": detail})
+    def start(
+        self, step: str, title: str, detail: Optional[str] = None, sources: Optional[list[str]] = None
+    ) -> None:
+        event: dict[str, Any] = {"type": "step", "step": step, "status": "running", "title": title, "detail": detail}
+        if sources:
+            event["sources"] = sources
+        self.event(event)
 
-    def log(self, step: str, text: str, kind: LogKind = "info") -> None:
-        self.event({"type": "log", "step": step, "text": text, "kind": kind})
+    def log(self, step: str, text: str, kind: LogKind = "info", source: Optional[str] = None) -> None:
+        event: dict[str, Any] = {"type": "log", "step": step, "text": text, "kind": kind}
+        if source:
+            event["source"] = source
+        self.event(event)
 
     def done(self, step: str, detail: Optional[str] = None, status: StepStatus = "done") -> None:
         self.event({"type": "step", "step": step, "status": status, "detail": detail})
@@ -61,6 +75,7 @@ class StepReporter:
         status: StepStatus,
         detail: Optional[str] = None,
         hub: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """A collaborating sub-agent inside a step (drawn as a node linked to the step's hub)."""
         event: dict[str, Any] = {
@@ -69,6 +84,8 @@ class StepReporter:
         }
         if hub:
             event["hub"] = hub
+        if source:
+            event["source"] = source
         self.event(event)
 
 

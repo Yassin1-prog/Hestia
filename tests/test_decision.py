@@ -362,8 +362,11 @@ def test_run_search_sinks_flagged_listing_to_bottom(monkeypatch, fake_oumi_env):
     safe_url = "https://www.spitogatos.gr/aggelia/safe"
 
     def fake_generate(prompt, schema):
-        if schema is agent.SearchURL:
-            return agent.SearchURL(url="https://www.spitogatos.gr/enoikiaseis-katoikies/pagkrati?max_price=700")
+        if schema is agent.SearchPlan:
+            return agent.SearchPlan(
+                spitogatos_url="https://www.spitogatos.gr/enoikiaseis-katoikies/pagkrati?max_price=700",
+                area="Pangrati, Athens", area_greek=None, max_price=700, min_sqm=None, min_bedrooms=None,
+            )
         if schema is agent.AllProperties:
             return agent.AllProperties(
                 properties=[
@@ -400,6 +403,7 @@ def test_run_search_sinks_flagged_listing_to_bottom(monkeypatch, fake_oumi_env):
             return httpx.Response(200, json=_answers(0.94, "POSSIBLY_SCAM", price_anomaly=0.96))
         return httpx.Response(200, json=_answers(0.05, "SAFE"))
 
+    monkeypatch.setenv("SEARCH_SOURCES", "spitogatos")  # The fakes only cover Spitogatos.
     monkeypatch.setattr(agent, "_generate", fake_generate)
     monkeypatch.setattr(agent, "scrape_page", fake_scrape)
     monkeypatch.setattr(
