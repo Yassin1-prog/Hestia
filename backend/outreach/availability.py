@@ -16,6 +16,7 @@ import os
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Literal, Optional
+from urllib.parse import parse_qs, quote, urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -76,7 +77,22 @@ def resolve_calendar_url(url: Optional[str]) -> Optional[str]:
         raw = "https://" + raw[len("webcal://") :]
     if not raw.startswith(("https://", "http://")):
         raise ValueError("The calendar address must be an https:// or webcal:// iCal link")
-    return raw
+    return _embed_to_ical(raw)
+
+
+def _embed_to_ical(url: str) -> str:
+    """A Google Calendar *embed* link (…/calendar/embed?src=<id>) → that calendar's public iCal feed.
+
+    The public feed only works when the calendar is shared publicly ("Make available to public");
+    a private calendar needs its "secret address in iCal format" instead.
+    """
+    parsed = urlparse(url)
+    if parsed.hostname != "calendar.google.com" or not parsed.path.rstrip("/").endswith("/embed"):
+        return url
+    calendar_id = (parse_qs(parsed.query).get("src") or [""])[0].strip()
+    if not calendar_id:
+        return url
+    return f"https://calendar.google.com/calendar/ical/{quote(calendar_id, safe='')}/public/basic.ics"
 
 
 def _aware(value: datetime | date) -> tuple[datetime, bool]:

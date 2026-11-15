@@ -260,11 +260,11 @@ export function SettingsPanel({
         <p className="settings-hint">
           The agent proposes viewing times when you are free. Paste your calendar&apos;s{" "}
           <em>secret address in iCal format</em> (Google Calendar → Settings → your calendar →
-          Integrate calendar). It is read-only and only used to find free slots. Without it, the
-          agent uses a sample work week.
+          Integrate calendar), or its embed link if the calendar is public. It is read-only and
+          only used to find free slots. Without it, the agent uses a sample work week.
         </p>
         <label className="label">
-          Secret iCal address
+          Secret iCal address or public embed link
           <input
             className="field"
             type="url"

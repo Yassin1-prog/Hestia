@@ -16,6 +16,8 @@ export const SITES: Record<string, { name: string; logo: string; domain: string 
     logo: "/logos/google-calendar.png",
     domain: "calendar.google.com",
   },
+  // Generic calendar icon shown while the agent checks the user's availability.
+  calendar: { name: "Calendar", logo: "/logos/calendar.svg", domain: "" },
 };
 
 /** The site a listing URL belongs to, if it is one we search. */

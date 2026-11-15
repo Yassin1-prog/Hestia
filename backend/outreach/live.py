@@ -42,6 +42,7 @@ SOURCE_LABEL = {
 
 # The UI shows this service's logo next to the step / line (see backend/streaming.py).
 GOOGLE_CALENDAR = "google_calendar"
+CALENDAR = "calendar"
 
 
 def _step(step: str, title: str, detail: str, sources: Optional[list[str]] = None) -> Event:
@@ -146,7 +147,14 @@ async def stream_listing_outreach(
         yield _done("brief", "Listing and profile loaded")
 
         # 2. Calendar ----------------------------------------------------------------------
-        yield _step("calendar", "Checking your calendar", "Looking for free evenings and weekend slots")
+        feed = (calendar_url or "").strip() or os.getenv("GOOGLE_CALENDAR_ICS_URL", "").strip()
+        google = GOOGLE_CALENDAR if "google.com" in feed else None
+        # While the agent looks at the calendar the UI shows the Google Calendar logo (when that is
+        # the feed) next to a generic calendar icon.
+        yield _step(
+            "calendar", "Checking your calendar", "Looking for free evenings and weekend slots",
+            sources=[s for s in (google, CALENDAR) if s],
+        )
         if context.viewing_windows:
             yield _log("calendar", "Using the viewing windows you provided", "ok")
             windows = list(context.viewing_windows)
@@ -154,13 +162,7 @@ async def stream_listing_outreach(
                 yield _log("calendar", f"Free: {w}", "ok")
             yield _done("calendar", f"{len(windows)} viewing windows ready")
         else:
-            feed = (calendar_url or "").strip() or os.getenv("GOOGLE_CALENDAR_ICS_URL", "").strip()
-            google = GOOGLE_CALENDAR if "google.com" in feed else None
             if feed:
-                yield _step(
-                    "calendar", "Checking your calendar", "Looking for free evenings and weekend slots",
-                    sources=[google] if google else None,
-                )
                 yield _log(
                     "calendar",
                     "Connecting to your Google Calendar (iCal feed)" if google else "Connecting to your calendar (iCal feed)",
@@ -189,7 +191,7 @@ async def stream_listing_outreach(
                 if windows
                 else "No free slot this week: asking the landlord to suggest a time",
                 # Keep the Google Calendar logo only if the feed was actually read.
-                sources=[GOOGLE_CALENDAR] if availability.source == "google" else [],
+                sources=[GOOGLE_CALENDAR, CALENDAR] if availability.source == "google" else [CALENDAR],
             )
             context = context.model_copy(update={"viewing_windows": windows})
 

@@ -1,4 +1,4 @@
-"""Search & ranking agent: plan → scan every site in parallel → rank → deep scrape top 3.
+"""Search & ranking agent: plan → scan every site in parallel → rank → deep scrape top 5.
 
 Sites (Spitogatos, xe.gr, Booking.com) are adapters in backend/sources.py.
 
@@ -64,7 +64,7 @@ class PropertyLink(BaseModel):
 
 
 class PropertyList(BaseModel):
-    links: List[PropertyLink] = Field(description="List of the top 3 listing links.")
+    links: List[PropertyLink] = Field(description="List of the top 5 listing links.")
 
 
 METRIC_NAMES = ["Price & value", "Space & layout", "Location", "Condition & light", "Your must-haves"]
@@ -195,7 +195,7 @@ def get_markdown(url: str) -> str:
 # ==========================================
 # PIPELINE
 # ==========================================
-TOP_N = 3
+TOP_N = 5
 
 STEP_TITLES = {
     "understand": "Reading your request",

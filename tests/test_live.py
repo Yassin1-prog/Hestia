@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -17,6 +18,12 @@ from backend.outreach.availability import (
     sample_week,
 )
 from backend.outreach.live import stream_listing_outreach
+
+
+@pytest.fixture(autouse=True)
+def _no_server_calendar(monkeypatch):
+    """Keep the developer's own calendar (GOOGLE_CALENDAR_ICS_URL in .env) out of the tests."""
+    monkeypatch.delenv("GOOGLE_CALENDAR_ICS_URL", raising=False)
 
 # Sunday 15 Nov 2026, 12:00 Athens time.
 NOW = datetime(2026, 11, 15, 12, 0, tzinfo=TIMEZONE)
@@ -292,3 +299,14 @@ def test_cleared_questions_mean_viewing_request_only():
 
     body = compose_email(LISTING, "Maria", CTX.model_copy(update={"questions": []})).text
     assert "questions about the property" not in body and "pets" not in body
+
+
+def test_embed_link_becomes_public_ical_feed():
+    from backend.outreach.availability import resolve_calendar_url
+
+    embed = "https://calendar.google.com/calendar/embed?src=someone%40gmail.com&ctz=Europe%2FVienna"
+    assert resolve_calendar_url(embed) == (
+        "https://calendar.google.com/calendar/ical/someone%40gmail.com/public/basic.ics"
+    )
+    ics = "https://calendar.google.com/calendar/ical/x/private-abc/basic.ics"
+    assert resolve_calendar_url(ics) == ics

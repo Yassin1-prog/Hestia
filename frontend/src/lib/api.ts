@@ -101,7 +101,7 @@ export function normalize(query: string, data: unknown): SearchResult {
         Number(a.scam_verdict === "POSSIBLY_SCAM") - Number(b.scam_verdict === "POSSIBLY_SCAM") ||
         b.agentic_score - a.agentic_score,
     )
-    .slice(0, 3);
+    .slice(0, 5);
   return {
     query,
     reply: typeof obj.reply === "string" && obj.reply ? obj.reply : synthesizeReply(properties),

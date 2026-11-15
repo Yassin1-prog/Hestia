@@ -380,7 +380,12 @@ export function demoOutreachEvents(
 
   const { slots, conflicts } = sampleSlots();
   const feed = profile.calendarUrl?.trim() ?? "";
-  s.start("calendar", "Checking your calendar", "Looking for free evenings and weekend slots").log(
+  s.start(
+    "calendar",
+    "Checking your calendar",
+    "Looking for free evenings and weekend slots",
+    feed.includes("google.com") ? ["google_calendar", "calendar"] : ["calendar"],
+  ).log(
     "calendar",
     feed
       ? `Agent backend offline: using a sample work week instead of your ${feed.includes("google.com") ? "Google Calendar" : "calendar"}`
