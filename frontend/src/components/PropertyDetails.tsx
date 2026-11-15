@@ -9,6 +9,8 @@ import {
   MapPin,
   MessageCircleQuestion,
   Minus,
+  Phone,
+  PhoneCall,
   Plus,
   Send,
   ShieldAlert,
@@ -89,7 +91,6 @@ function MetricBar({ metric, index }: { metric: MetricScore; index: number }) {
   );
 }
 
-/** Older results (or a listing the agent could not judge) fall back to what the card knows. */
 function insights(p: Property) {
   const pros = p.pros?.length ? p.pros : p.features.slice(0, 4);
   const cons = p.cons?.length ? p.cons : p.missing_info.slice(0, 3).map((q) => `Unconfirmed: ${q}`);
@@ -105,11 +106,10 @@ interface PropertyDetailsProps {
   approved: boolean;
   favorite: boolean;
   run?: OutreachRun;
-  /** Open with the question briefing already showing (e.g. from My Favorites). */
   startWithBrief?: boolean;
   initialQuestions?: string[];
   onClose: () => void;
-  onApprove: (questions: string[]) => void;
+  onApprove: (channel: "email" | "call", questions: string[]) => void;
   onToggleFavorite: () => void;
 }
 
@@ -126,13 +126,13 @@ export function PropertyDetails({
   onToggleFavorite,
 }: PropertyDetailsProps) {
   const open = !!property;
-  const [briefing, setBriefing] = useState(startWithBrief);
+  const [emailBriefing, setEmailBriefing] = useState(startWithBrief);
+
   const bodyRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [shown, setShown] = useState<Property | null>(property);
   const [openSeq, setOpenSeq] = useState(0);
 
-  // Keep the last property rendered while the dialog animates out; replay animations per open.
   useEffect(() => {
     if (!property) return;
     setShown(property);
@@ -140,7 +140,7 @@ export function PropertyDetails({
   }, [property]);
 
   useEffect(() => {
-    setBriefing(startWithBrief);
+    setEmailBriefing(startWithBrief);
   }, [property?.url, startWithBrief]);
 
   useEffect(() => {
@@ -154,8 +154,10 @@ export function PropertyDetails({
   const hasRun = !!run;
   useEffect(() => {
     const body = bodyRef.current;
-    if (body && (briefing || hasRun)) body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
-  }, [briefing, hasRun]);
+    if (body && (emailBriefing || hasRun)) {
+      body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
+    }
+  }, [emailBriefing, hasRun]);
 
   const p = shown;
   const working = run?.phase === "running";
@@ -201,14 +203,14 @@ export function PropertyDetails({
             <PhotoGallery images={p.images} alt={propertyTitle(p)} />
             <DetailsContent p={p} />
 
-            {briefing && !run && (
+            {emailBriefing && !run && (
               <ContactBrief
                 property={p}
                 initial={initialQuestions}
-                onCancel={() => setBriefing(false)}
+                onCancel={() => setEmailBriefing(false)}
                 onSend={(questions) => {
-                  setBriefing(false);
-                  onApprove(questions);
+                  setEmailBriefing(false);
+                  onApprove("email", questions);
                 }}
               />
             )}
@@ -217,14 +219,18 @@ export function PropertyDetails({
 
           <footer className="modal-foot">
             <div className="contact">
-              {p.agent_email ? (
+              {p.agent_phone ? (
+                <span className="contact-phone">
+                  <Phone size={14} strokeWidth={1.75} /> {p.agent_phone}
+                </span>
+              ) : p.agent_email ? (
                 <a className="contact-phone" href={`mailto:${p.agent_email}`}>
                   <Mail size={14} strokeWidth={1.75} />
                   {p.agent_email}
                 </a>
               ) : (
-                <span className="contact-phone contact-missing">
-                  <Mail size={14} strokeWidth={1.75} /> No e-mail listed
+                <span className="contact-phone">
+                  <Phone size={14} strokeWidth={1.75} /> Voice AI Ready
                 </span>
               )}
               {p.agent_name && <span className="contact-name">{p.agent_name}</span>}
@@ -248,11 +254,14 @@ export function PropertyDetails({
               >
                 <ExternalLink size={16} strokeWidth={1.75} />
               </a>
+
+              {/* E-MAIL BUTTON */}
               <button
                 type="button"
                 className={`approve-btn${approved || working ? " is-approved" : ""}`}
-                onClick={() => setBriefing(true)}
-                disabled={approved || working || briefing}
+                onClick={() => setEmailBriefing(true)}
+                disabled={approved || working || emailBriefing}
+                title="Send E-mail to Landlord"
               >
                 <span className="btn-swap" key={working ? "w" : approved ? "a" : "n"}>
                   {working ? (
@@ -261,15 +270,34 @@ export function PropertyDetails({
                     </>
                   ) : approved ? (
                     <>
-                      <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                      <Check size={15} strokeWidth={2} className="check-draw" /> Contacted
                     </>
                   ) : (
                     <>
-                      <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact
+                      <Send size={15} strokeWidth={1.75} /> E-mail
                     </>
                   )}
                 </span>
               </button>
+
+              {/* DIRECT CALL BUTTON */}
+              {!approved && !working && (
+                <button
+                  type="button"
+                  className="approve-btn"
+                  style={{
+                    background: "rgba(16, 185, 129, 0.18)",
+                    color: "#34d399",
+                    border: "1px solid rgba(16, 185, 129, 0.35)",
+                  }}
+                  onClick={() => onApprove("call", p.missing_info ?? [])}
+                  title="Start Live AI Voice Call with Landlord Immediately"
+                >
+                  <span className="btn-swap" key="call-btn">
+                    <PhoneCall size={15} strokeWidth={1.75} /> Call
+                  </span>
+                </button>
+              )}
             </div>
           </footer>
         </div>

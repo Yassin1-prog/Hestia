@@ -10,6 +10,8 @@ import {
   Mail,
   MapPin,
   Maximize2,
+  Phone,
+  PhoneCall,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -36,8 +38,8 @@ interface PropertyCardProps {
   favorite: boolean;
   /** The live outreach agent for this listing, if one was started in this session. */
   run?: OutreachRun;
-  /** Called once the user approved the questions in the briefing. */
-  onApprove: (questions: string[]) => void;
+  /** Called once the user approved the questions in the briefing or clicked Call. */
+  onApprove: (channel: "email" | "call", questions: string[]) => void;
   onToggleFavorite: () => void;
   onShowDetails: () => void;
 }
@@ -53,7 +55,7 @@ export function PropertyCard({
   onShowDetails,
 }: PropertyCardProps) {
   const working = run?.phase === "running";
-  const [briefing, setBriefing] = useState(false);
+  const [emailBriefing, setEmailBriefing] = useState(false);
   const tilt = useTilt();
   const tier = scoreTier(p.agentic_score);
   const starGradientId = useId();
@@ -148,18 +150,20 @@ export function PropertyCard({
 
       <footer className="card-foot">
         <div className="contact">
-          {p.agent_email ? (
+          {p.agent_phone ? (
+            <span className="contact-phone" title="Landlord Phone">
+              <Phone size={14} strokeWidth={1.75} />
+              {p.agent_phone}
+            </span>
+          ) : p.agent_email ? (
             <a className="contact-phone" href={`mailto:${p.agent_email}`} title="E-mail agent">
               <Mail size={14} strokeWidth={1.75} />
               {p.agent_email}
             </a>
           ) : (
-            <span
-              className="contact-phone contact-missing"
-              title="The agent can only reach landlords by e-mail"
-            >
-              <Mail size={14} strokeWidth={1.75} />
-              No e-mail listed
+            <span className="contact-phone" title="Ready for AI Voice Call">
+              <Phone size={14} strokeWidth={1.75} />
+              Voice AI Ready
             </span>
           )}
           {p.agent_name && <span className="contact-name">{p.agent_name}</span>}
@@ -193,13 +197,15 @@ export function PropertyCard({
           >
             <ExternalLink size={16} strokeWidth={1.75} />
           </a>
+
+          {/* E-MAIL BUTTON */}
           <button
             type="button"
             className={`approve-btn${approved || working ? " is-approved" : ""}`}
-            onClick={() => setBriefing(true)}
-            disabled={approved || working || briefing}
+            onClick={() => setEmailBriefing(true)}
+            disabled={approved || working || emailBriefing}
+            title="Send E-mail to Landlord"
           >
-            {/* Keyed so the label cross-fades when the state changes. */}
             <span className="btn-swap" key={working ? "w" : approved ? "a" : "n"}>
               {working ? (
                 <>
@@ -207,25 +213,44 @@ export function PropertyCard({
                 </>
               ) : approved ? (
                 <>
-                  <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                  <Check size={15} strokeWidth={2} className="check-draw" /> Contacted
                 </>
               ) : (
                 <>
-                  <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact
+                  <Send size={15} strokeWidth={1.75} /> E-mail
                 </>
               )}
             </span>
           </button>
+
+          {/* DIRECT CALL BUTTON - Triggers Call Immediately! */}
+          {!approved && !working && (
+            <button
+              type="button"
+              className="approve-btn"
+              style={{
+                background: "rgba(16, 185, 129, 0.18)",
+                color: "#34d399",
+                border: "1px solid rgba(16, 185, 129, 0.35)",
+              }}
+              onClick={() => onApprove("call", p.missing_info ?? [])}
+              title="Start Live AI Voice Call with Landlord Immediately"
+            >
+              <span className="btn-swap" key="call-btn">
+                <PhoneCall size={15} strokeWidth={1.75} /> Call
+              </span>
+            </button>
+          )}
         </div>
       </footer>
 
-      {briefing && !run && !approved && (
+      {emailBriefing && !run && !approved && (
         <ContactBrief
           property={p}
-          onCancel={() => setBriefing(false)}
+          onCancel={() => setEmailBriefing(false)}
           onSend={(questions) => {
-            setBriefing(false);
-            onApprove(questions);
+            setEmailBriefing(false);
+            onApprove("email", questions);
           }}
         />
       )}

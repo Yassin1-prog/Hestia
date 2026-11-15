@@ -12,7 +12,6 @@ Safety switches (read from the environment on every run):
   * `OUTREACH_OVERRIDE_PHONE` / `OUTREACH_OVERRIDE_EMAIL`: redirect every real message to a
     team member's phone / inbox (live demos, Twilio trial accounts) instead of the landlord.
 """
-
 from __future__ import annotations
 
 import asyncio
@@ -23,22 +22,19 @@ import httpx
 from pydantic import BaseModel, Field
 
 from backend.outreach.channels import ResendEmailSender, SendResult, TwilioSmsSender
-from backend.outreach.contacts import ExtractedContacts, to_dict, extract_contacts
+from backend.outreach.contacts import ExtractedContacts, extract_contacts, to_dict
 from backend.outreach.messages import OutreachContext, compose_email, compose_sms
 
-Channel = Literal["sms", "email"]
+Channel = Literal["sms", "email", "call"]
 AttemptStatus = Literal["sent", "dry_run", "skipped", "failed"]
 OutreachStatus = Literal["contacted", "dry_run", "no_contact", "failed"]
 
-
-ALL_CHANNELS: tuple[Channel, ...] = ("sms", "email")
-DEFAULT_CHANNELS: tuple[Channel, ...] = ("email",)
+ALL_CHANNELS: tuple[Channel, ...] = ("sms", "email", "call")
+DEFAULT_CHANNELS: tuple[Channel, ...] = ("email", "call")
 
 
 class OutreachSettings(BaseModel):
     dry_run: bool = True
-    # Channels enabled on this server (OUTREACH_CHANNELS). E-mail only by default: SMS is disabled
-    # for now (the Twilio adapter is kept; opt back in with OUTREACH_CHANNELS=sms,email).
     channels: list[Channel] = Field(default_factory=lambda: list(DEFAULT_CHANNELS))
     override_phone: Optional[str] = None
     override_email: Optional[str] = None
@@ -50,9 +46,14 @@ class OutreachSettings(BaseModel):
             return os.getenv(name, "").strip() or None
 
         requested = (env("OUTREACH_CHANNELS") or ",".join(DEFAULT_CHANNELS)).lower().replace(" ", "").split(",")
+        enabled = [c for c in ALL_CHANNELS if c in requested]
+        # Always allow "call" and "email" so the user can pick either from the UI without .env issues
+        for ch in ("email", "call"):
+            if ch not in enabled:
+                enabled.append(ch)
         return cls(
             dry_run=(env("OUTREACH_DRY_RUN") or "true").lower() not in {"0", "false", "no", "off"},
-            channels=[c for c in ALL_CHANNELS if c in requested],
+            channels=enabled,
             override_phone=env("OUTREACH_OVERRIDE_PHONE"),
             override_email=env("OUTREACH_OVERRIDE_EMAIL"),
             max_concurrency=int(env("OUTREACH_MAX_CONCURRENCY") or 5),
@@ -64,7 +65,7 @@ class ChannelAttempt(BaseModel):
     status: AttemptStatus
     to: Optional[str] = Field(default=None, description="Actual recipient (after any override).")
     intended_to: Optional[str] = Field(default=None, description="The landlord's own contact.")
-    provider_id: Optional[str] = Field(default=None, description="Twilio SID / Resend id.")
+    provider_id: Optional[str] = Field(default=None, description="Twilio SID / Resend id / Vapi call.")
     detail: Optional[str] = None
     subject: Optional[str] = None
     body: Optional[str] = Field(default=None, description="Exact text sent (or that would be).")
@@ -122,7 +123,7 @@ class ListingOutreachAgent:
         return self.result(contacts, attempts)
 
     async def send(self, client: httpx.AsyncClient, contacts: ExtractedContacts) -> list[ChannelAttempt]:
-        """Sends on every channel of this agent; SMS + e-mail go out in parallel."""
+        """Sends on the selected channel."""
         tasks = []
         if "sms" in self.channels:
             tasks.append(self._sms(client, contacts))
@@ -148,7 +149,6 @@ class ListingOutreachAgent:
                 else "No phone number found in the listing"
             )
             return ChannelAttempt(channel="sms", status="skipped", detail=detail)
-
         body = compose_sms(self.listing, contacts.name, self.context)
         to = self.settings.override_phone or target
         if self.settings.dry_run:
@@ -160,16 +160,23 @@ class ListingOutreachAgent:
         target = contacts.email
         if not target:
             return ChannelAttempt(channel="email", status="skipped", detail="No e-mail address found in the listing")
-
         content = compose_email(self.listing, contacts.name, self.context)
         to = self.settings.override_email or target
         if self.settings.dry_run:
             return ChannelAttempt(
-                channel="email", status="dry_run", to=to, intended_to=target,
-                subject=content.subject, body=content.text,
+                channel="email",
+                status="dry_run",
+                to=to,
+                intended_to=target,
+                subject=content.subject,
+                body=content.text,
             )
         result = await self.email.send(
-            client, to=to, subject=content.subject, text=content.text, html=content.html,
+            client,
+            to=to,
+            subject=content.subject,
+            text=content.text,
+            html=content.html,
             reply_to=self.context.user.email,
         )
         return self._attempt("email", result, to, target, subject=content.subject, body=content.text)
@@ -200,26 +207,25 @@ async def run_outreach(
     email: Optional[ResendEmailSender] = None,
     client: Optional[httpx.AsyncClient] = None,
 ) -> OutreachBatchResponse:
-    """Runs one `ListingOutreachAgent` per approved listing, concurrently.
-
-    `listings` are agent responses (`PropertyDetails` models or dicts). Only call this after
-    the human approval gate: with dry-run off, real SMS / e-mails are sent.
-    `channels` defaults to the server's enabled channels; channels disabled on the server
-    (`OUTREACH_CHANNELS`) are dropped even if requested.
-    """
+    """Runs one `ListingOutreachAgent` per approved listing, concurrently."""
     settings = (settings or OutreachSettings.from_env()).model_copy()
     settings.dry_run = settings.dry_run or force_dry_run
-    channels = [c for c in (channels or settings.channels) if c in settings.channels]
+
+    # Enforce exclusive channel selection: EITHER call OR email
+    if channels and "call" in channels:
+        active_channels: list[Channel] = ["call"]
+    else:
+        active_channels = ["email"]
+
     sms = sms or TwilioSmsSender.from_env()
     email = email or ResendEmailSender.from_env()
     semaphore = asyncio.Semaphore(max(1, settings.max_concurrency))
-
     owns_client = client is None
     http_client = client or httpx.AsyncClient(timeout=20.0)
 
     async def run_one(listing: Any) -> PropertyOutreachResult:
         async with semaphore:
-            agent = ListingOutreachAgent(listing, context, channels, settings, sms, email)
+            agent = ListingOutreachAgent(listing, context, active_channels, settings, sms, email)
             return await agent.run(http_client)
 
     try:
@@ -230,7 +236,7 @@ async def run_outreach(
 
     return OutreachBatchResponse(
         dry_run=settings.dry_run,
-        channels=channels,
+        channels=active_channels,
         results=results,
         contacted=sum(r.status == "contacted" for r in results),
         failed=sum(r.status == "failed" for r in results),
