@@ -1,37 +1,39 @@
 # Hestia — Autonomous Housing Agent
 
-> **Describe the home. The agent does the rest.**  
->  **Hestia** turns a natural language prompt into  apartment matches from **real, live market data**, while at the same time checking their legitimacy. The app was designed to follow a human-in-the-loop architecture so that humans can always audit who/how the agent conctacts the landlords.
----
+_The home you need, found, verified, and booked — before your coffee gets cold. Stop hunting. Start moving. That's Hestia._
 
 ## Problem Statement
-House hunting is a second job. Endless scrolling, rental scams, and wasted time in phone calls. That’s why we built Hestia.
+
+House hunting is a second job — endless scrolling, rental scams, and wasted time on phone calls. Hestia deploys a team of AI agents that find, verify, and book viewings for you.
 
 ## Why Hestia
 
-- **Real, live market data:** Scrapes live portals on demand via **Firecrawl** + **Gemini**—evaluating real listings, photos, €/m² cohort pricing, and landlord contacts (with automatic offline fallback only if the backend is down).
-- **Post-ranker scam defense (`Oumi Iris`):** Underpriced bait listings often rank #1 on portals. **Oumi's `Iris` Decision Model** screens shortlisted homes against real neighborhood pricing and flags/demotes suspected scams (`≥ 50%` risk).
-- **Human-in-the-loop outreach:** You stay in control—approve or add questions (`missing_info`), match conflict-free **Google Calendar** viewing slots, and send tailored requests via **Resend** email (or preview a **live LLM voice-call** mockup), while flagged scams stay **locked to draft-only**.
-
+- **Search, inspect & rank** — Parallel agents scour portals, marketplaces, and social feeds so no opportunity is missed, then deep-dive each listing to return a scored shortlist with match breakdown, pros, cons, and the questions you'd actually want answered.
+- **Scam defense** — Oumi’s `Iris` Decision Model screens every shortlisted home against neighborhood pricing and flags suspected scams before you ever reach out.
+- **Human-in-the-loop outreach** — Approve questions, match your Google Calendar, and send tailored requests via email or live AI voice call.
 
 ## Walkthrough
 
 ### 1. Natural-Language Prompt
+
 Describe your ideal home in one sentence and save your profile + Google Calendar iCal URL once in **Settings**.
 
 ![Step 1 — Home Screen & Natural-Language Prompt](docs/screenshots/01-home-prompt.png)
 
 ### 2. Live Multi-Agent Pipeline & Swarm Graph
+
 Hestia streams every stage in real , visualizing parallel sub-agents under **Orchestrator** and **Oumi Iris** hubs.
 
 ![Step 2 — Live Multi-Agent Search & Oumi Iris Swarm Graph](docs/screenshots/02-live-agent-swarm.png)
 
 ### 3. Verified Property Cards (`Live data` + `Oumi Iris`)
+
 Each finalist shows an overall match score, authentic photos, an **`Oumi Iris · Safe / Possible scam`** badge, **Details** (5-metric breakdown + gallery + open questions), and **Ask Agent to Contact**.
 
 ![Step 3 — AI Property Cards & Oumi Iris Scam Verification](docs/screenshots/03-property-cards-oumi-iris.png)
 
 ### 4. Human-in-the-Loop Outreach & Scheduling
+
 Clicking **Ask Agent to Contact** lets you review or edit the agent's questions, checks your **Google Calendar** for conflict-free evening/weekend slots, verifies the landlord's email, drafts/sends via **Resend**, and includes an interactive **live LLM voice-call** demo (ready to route over **Twilio Voice** in production).
 
 ![Step 4 — Human-in-the-Loop Outreach, Calendar Slots & Live AI Voice Call](docs/screenshots/image.png)
