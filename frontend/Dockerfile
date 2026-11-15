@@ -29,5 +29,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 USER nextjs
 EXPOSE 3000
-# Railway overrides PORT at runtime; server.js reads PORT and HOSTNAME.
-CMD ["node", "server.js"]
+# server.js binds to $HOSTNAME:$PORT. Force 0.0.0.0 at start-up so a runtime-injected HOSTNAME
+# (the container's own name) can't make it listen on an address Railway's proxy can't reach.
+CMD ["sh", "-c", "export HOSTNAME=0.0.0.0 && exec node server.js"]
