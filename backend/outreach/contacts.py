@@ -40,6 +40,7 @@ SKIP_TEXT_KEYS = {"url", "link", "href", "image", "images", "photos"}
 BLOCKED_EMAIL_DOMAINS = {
     "spitogatos.gr",
     "xe.gr",
+    "booking.com",
     "plot.gr",
     "facebook.com",
     "facebookmail.com",

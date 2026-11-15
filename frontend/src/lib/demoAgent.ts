@@ -3,6 +3,8 @@
  * (backend/agent.py, backend/outreach/live.py), built from the demo data, so the UI shows the
  * agent working either way. Nothing here contacts anyone.
  */
+import { SITES, siteForUrl } from "@/components/SiteLogo";
+
 import { formatPrice, propertyTitle, scoreLabel } from "./format";
 import type { AgentEvent, LogKind, StepStatus } from "./trace";
 import type { EmailOutcome, Profile, Property, SearchResult } from "./types";
@@ -11,12 +13,12 @@ type DemoEvent = AgentEvent | { type: "outcome"; outcome: EmailOutcome };
 
 class Script {
   events: DemoEvent[] = [];
-  start(step: string, title: string, detail: string) {
-    this.events.push({ type: "step", step, status: "running", title, detail });
+  start(step: string, title: string, detail: string, sources?: string[]) {
+    this.events.push({ type: "step", step, status: "running", title, detail, sources });
     return this;
   }
-  log(step: string, text: string, kind: LogKind = "info") {
-    this.events.push({ type: "log", step, text, kind });
+  log(step: string, text: string, kind: LogKind = "info", source?: string) {
+    this.events.push({ type: "log", step, text, kind, source });
     return this;
   }
   done(step: string, detail: string, status: StepStatus = "done") {
@@ -30,8 +32,9 @@ class Script {
     status: StepStatus,
     detail: string,
     hub?: string,
+    source?: string,
   ) {
-    this.events.push({ type: "agent", step, agent, label, status, detail, hub });
+    this.events.push({ type: "agent", step, agent, label, status, detail, hub, source });
     return this;
   }
 }
@@ -54,6 +57,10 @@ function shortUrl(property: Property): string {
   }
 }
 
+function siteOf(p: Property): string | undefined {
+  return p.source ?? siteForUrl(p.url);
+}
+
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
@@ -67,22 +74,85 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
   const maxPrice = Math.ceil(Math.max(0, ...props.map((p) => p.price ?? 0)) / 50) * 50;
   const s = new Script();
 
-  s.start("understand", "Reading your request", "Turning your request into search filters")
-    .log("understand", "Gemini is translating your request into Spitogatos filters")
-    .log("understand", `Area: ${areaLabel}`);
-  if (maxPrice) s.log("understand", `Max price: €${maxPrice}`);
-  s.log(
-    "understand",
-    `Search URL ready: spitogatos.gr/enoikiaseis-katoikies/${area}${maxPrice ? `?max_price=${maxPrice}` : ""}`,
-    "ok",
-  ).done("understand", "Search filters ready");
+  const sites = ["spitogatos", "xe", "booking"];
+  const names = "Spitogatos, xe.gr and Booking.com";
+  // Rough split of the scanned listings across the three sites.
+  const perSite: Record<string, number> = {
+    spitogatos: Math.round(scanned * 0.45),
+    xe: Math.round(scanned * 0.4),
+  };
+  perSite.booking = Math.max(0, scanned - perSite.spitogatos - perSite.xe);
 
-  s.start("scan", "Scanning listings", "Reading every listing on the results page")
-    .log("scan", "Firecrawl is opening the Spitogatos results page")
-    .log("scan", `Results page downloaded (${18 + scanned} KB of text)`)
-    .log("scan", "Gemini is extracting every listing card")
-    .log("scan", `Found ${scanned} listings`, "ok")
-    .done("scan", `Scanned ${scanned} listings`);
+  s.start("understand", "Reading your request", "Turning your request into search filters")
+    .log("understand", `Gemini is translating your request into filters for ${names}`)
+    .log("understand", `Area: ${areaLabel}, Athens`);
+  if (maxPrice) s.log("understand", `Max price: €${maxPrice}/month`);
+  sites.forEach((k) => s.log("understand", `${SITES[k].name} search planned`, "ok", k));
+  s.done("understand", "Search filters ready");
+
+  s.start("scan", "Scanning listings", `Searching ${names} in parallel`, sites).log(
+    "scan",
+    "Dispatching 3 scanner agents, one per site",
+  );
+  sites.forEach((k) =>
+    s.agent(
+      "scan",
+      `source-${k}`,
+      SITES[k].name,
+      "running",
+      "Opening the results page",
+      "Orchestrator",
+      k,
+    ),
+  );
+  s.log(
+    "scan",
+    `Spitogatos: Opening spitogatos.gr/enoikiaseis-katoikies/${area}${maxPrice ? `?max_price=${maxPrice}` : ""}`,
+    "info",
+    "spitogatos",
+  )
+    .log("scan", `xe.gr: Area ${areaLabel} is a known xe.gr area`, "info", "xe")
+    .log("scan", "Booking.com: Pricing a 30-night stay, starting in two weeks", "info", "booking")
+    .log(
+      "scan",
+      `xe.gr: Results page downloaded (${120 + scanned * 9} KB); read ${perSite.xe} listings from its data`,
+      "info",
+      "xe",
+    )
+    .log(
+      "scan",
+      `Spitogatos: Results page downloaded (${18 + scanned} KB); Gemini is reading the listing cards`,
+      "info",
+      "spitogatos",
+    )
+    .log(
+      "scan",
+      "Booking.com: Results page downloaded (340 KB); Gemini is reading the listing cards",
+      "info",
+      "booking",
+    );
+  sites.forEach((k) =>
+    s
+      .log(
+        "scan",
+        `${SITES[k].name}: found ${plural(perSite[k], "listing")}`,
+        perSite[k] ? "ok" : "warn",
+        k,
+      )
+      .agent(
+        "scan",
+        `source-${k}`,
+        SITES[k].name,
+        "done",
+        plural(perSite[k], "listing"),
+        undefined,
+        k,
+      ),
+  );
+  s.done(
+    "scan",
+    `Scanned ${scanned} listings (${sites.map((k) => `${perSite[k]} on ${SITES[k].name}`).join(", ")})`,
+  );
 
   s.start(
     "rank",
@@ -94,6 +164,7 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
       "rank",
       `Shortlisted #${i + 1}: ${formatPrice(p.price)}${p.sqm ? ` · ${p.sqm} m²` : ""}: ${propertyTitle(p)}`,
       "ok",
+      siteOf(p),
     ),
   );
   if (rejected) {
@@ -119,11 +190,20 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
         "running",
         `Opening ${shortUrl(p)}`,
         "Orchestrator",
+        siteOf(p),
       )
-      .log("inspect", `Agent ${i + 1} is opening ${shortUrl(p)}`),
+      .log("inspect", `Agent ${i + 1} is opening ${shortUrl(p)}`, "info", siteOf(p)),
   );
   props.forEach((p, i) =>
-    s.agent("inspect", `listing-${i + 1}`, `Agent ${i + 1}`, "running", "Reading the full listing"),
+    s.agent(
+      "inspect",
+      `listing-${i + 1}`,
+      `Agent ${i + 1}`,
+      "running",
+      "Reading the full listing",
+      undefined,
+      siteOf(p),
+    ),
   );
   props.forEach((p, i) =>
     s
@@ -133,6 +213,7 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
           (p.agent_email ? `e-mail for ${p.agent_name || "the landlord"}` : "no e-mail listed") +
           `, ${plural(p.missing_info.length, "open question")}`,
         p.agent_email ? "ok" : "warn",
+        siteOf(p),
       )
       .agent(
         "inspect",
@@ -289,12 +370,14 @@ export function demoOutreachEvents(
   s.done("brief", "Listing and profile loaded");
 
   const { slots, conflicts } = sampleSlots();
+  const feed = profile.calendarUrl?.trim() ?? "";
   s.start("calendar", "Checking your calendar", "Looking for free evenings and weekend slots").log(
     "calendar",
-    profile.calendarUrl?.trim()
-      ? "Agent backend offline: using a sample work week instead of your calendar"
+    feed
+      ? `Agent backend offline: using a sample work week instead of your ${feed.includes("google.com") ? "Google Calendar" : "calendar"}`
       : "No calendar connected: using a sample work week",
     "warn",
+    feed.includes("google.com") ? "google_calendar" : undefined,
   );
   s.log("calendar", "Read 9 events for the next 7 days");
   conflicts.slice(0, 3).forEach((c) => s.log("calendar", `Busy ${c}`, "warn"));

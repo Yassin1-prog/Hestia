@@ -38,16 +38,29 @@ SOURCE_LABEL = {
 }
 
 
-def _step(step: str, title: str, detail: str) -> Event:
-    return {"type": "step", "step": step, "status": "running", "title": title, "detail": detail}
+# The UI shows this service's logo next to the step / line (see backend/streaming.py).
+GOOGLE_CALENDAR = "google_calendar"
 
 
-def _done(step: str, detail: str, status: str = "done") -> Event:
-    return {"type": "step", "step": step, "status": status, "detail": detail}
+def _step(step: str, title: str, detail: str, sources: Optional[list[str]] = None) -> Event:
+    event: Event = {"type": "step", "step": step, "status": "running", "title": title, "detail": detail}
+    if sources:
+        event["sources"] = sources
+    return event
 
 
-def _log(step: str, text: str, kind: str = "info") -> Event:
-    return {"type": "log", "step": step, "text": text, "kind": kind}
+def _done(step: str, detail: str, status: str = "done", sources: Optional[list[str]] = None) -> Event:
+    event: Event = {"type": "step", "step": step, "status": status, "detail": detail}
+    if sources is not None:
+        event["sources"] = sources
+    return event
+
+
+def _log(step: str, text: str, kind: str = "info", source: Optional[str] = None) -> Event:
+    event: Event = {"type": "log", "step": step, "text": text, "kind": kind}
+    if source:
+        event["source"] = source
+    return event
 
 
 def _plural(n: int, word: str) -> str:
@@ -129,12 +142,20 @@ async def stream_listing_outreach(
                 yield _log("calendar", f"Free: {w}", "ok")
             yield _done("calendar", f"{len(windows)} viewing windows ready")
         else:
-            connected = bool((calendar_url or "").strip() or os.getenv("GOOGLE_CALENDAR_ICS_URL", "").strip())
-            yield (
-                _log("calendar", "Connecting to your Google Calendar (iCal feed)")
-                if connected
-                else _log("calendar", "No calendar connected: using a sample work week", "warn")
-            )
+            feed = (calendar_url or "").strip() or os.getenv("GOOGLE_CALENDAR_ICS_URL", "").strip()
+            google = GOOGLE_CALENDAR if "google.com" in feed else None
+            if feed:
+                yield _step(
+                    "calendar", "Checking your calendar", "Looking for free evenings and weekend slots",
+                    sources=[google] if google else None,
+                )
+                yield _log(
+                    "calendar",
+                    "Connecting to your Google Calendar (iCal feed)" if google else "Connecting to your calendar (iCal feed)",
+                    source=google,
+                )
+            else:
+                yield _log("calendar", "No calendar connected: using a sample work week", "warn")
             availability: Availability = await check_availability(calendar_url, http, now=now)
             if availability.error:
                 yield _log("calendar", f"{availability.error}: falling back to a sample work week", "warn")
@@ -143,6 +164,7 @@ async def stream_listing_outreach(
                 f"Read {availability.events} events from {SOURCE_LABEL[availability.source]}, "
                 f"{availability.window_start:%a} {availability.window_start.day} {availability.window_start:%b}"
                 f" to {availability.window_end:%a} {availability.window_end.day} {availability.window_end:%b}",
+                source=GOOGLE_CALENDAR if availability.source == "google" else None,
             )
             for conflict in availability.conflicts[:3]:
                 yield _log("calendar", f"Busy {conflict}", "warn")
@@ -154,6 +176,8 @@ async def stream_listing_outreach(
                 f"Found {len(windows)} free viewing slot{'' if len(windows) == 1 else 's'}"
                 if windows
                 else "No free slot this week: asking the landlord to suggest a time",
+                # Keep the Google Calendar logo only if the feed was actually read.
+                sources=[GOOGLE_CALENDAR] if availability.source == "google" else [],
             )
             context = context.model_copy(update={"viewing_windows": windows})
 

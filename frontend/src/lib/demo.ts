@@ -45,7 +45,7 @@ const PANGRATI: DemoSet = {
       scam_verdict: "SAFE",
     },
     {
-      url: "https://www.spitogatos.gr/enoikiaseis-katoikies/mets?demo=2",
+      url: "https://www.xe.gr/property/r/enoikiaseis-katoikion/ChIJ8UNwBh-9oRQR3Y1mdkU1Nic_athhna?demo=2",
       title: "Renovated flat near the Panathenaic Stadium",
       location: "Mets, Markou Mousourou St.",
       price: 610,
@@ -114,7 +114,7 @@ const PENTHOUSE: DemoSet = {
       scam_verdict: "SAFE",
     },
     {
-      url: "https://www.spitogatos.gr/enoikiaseis-katoikies/koukaki?demo=5",
+      url: "https://www.xe.gr/property/r/enoikiaseis-katoikion/ChIJ8UNwBh-9oRQR3Y1mdkU1Nic_athhna?demo=5",
       title: "Acropolis-view top floor",
       location: "Koukaki, Drakou St.",
       price: 1200,
@@ -179,7 +179,7 @@ const STUDENT: DemoSet = {
       scam_verdict: "SAFE",
     },
     {
-      url: "https://www.spitogatos.gr/enoikiaseis-katoikies/goudi?demo=8",
+      url: "https://www.xe.gr/property/r/enoikiaseis-katoikion/ChIJ8UNwBh-9oRQR3Y1mdkU1Nic_athhna?demo=8",
       title: "One-bedroom near Goudi park",
       location: "Goudi, Papadiamantopoulou St.",
       price: 470,

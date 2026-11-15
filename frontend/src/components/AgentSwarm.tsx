@@ -2,6 +2,7 @@
 
 import { Bot, Check, CircleAlert, LoaderCircle, ShieldCheck } from "lucide-react";
 
+import { SiteLogo } from "@/components/SiteLogo";
 import type { TraceAgent } from "@/lib/trace";
 
 function AgentIcon({ status }: { status: TraceAgent["status"] }) {
@@ -41,6 +42,7 @@ export function AgentSwarm({ hub, agents }: { hub?: string; agents: TraceAgent[]
               <span className="swarm-node-icon">
                 <AgentIcon status={a.status} />
               </span>
+              {a.source && <SiteLogo source={a.source} size={14} className="swarm-node-logo" />}
               <span className="swarm-node-label">{a.label}</span>
             </span>
             {a.detail && (

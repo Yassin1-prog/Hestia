@@ -25,6 +25,7 @@ import {
 import { ContactBrief } from "@/components/ContactBrief";
 import { CountUp } from "@/components/CountUp";
 import { ListingPhoto } from "@/components/ListingPhoto";
+import { SiteBadge, siteForUrl } from "@/components/SiteLogo";
 import { OutreachWorkspace } from "@/components/OutreachWorkspace";
 import { useTilt } from "@/lib/motion";
 import type { OutreachRun, Property } from "@/lib/types";
@@ -57,6 +58,7 @@ export function PropertyCard({
   const tilt = useTilt();
   const tier = scoreTier(p.agentic_score);
   const starGradientId = useId();
+  const site = p.source ?? siteForUrl(p.url);
 
   return (
     <article
@@ -83,8 +85,13 @@ export function PropertyCard({
         <span className="card-rank">{String(rank).padStart(2, "0")}</span>
         <div className="card-heading">
           <p className="card-location">
-            <MapPin size={13} strokeWidth={1.75} />
-            {propertyLocation(p)}
+            {(p.location || !site) && (
+              <>
+                <MapPin size={13} strokeWidth={1.75} />
+                {propertyLocation(p)}
+              </>
+            )}
+            {site && <SiteBadge source={site} />}
           </p>
           <h3 className="card-title">
             <button type="button" className="card-title-btn" onClick={onShowDetails}>

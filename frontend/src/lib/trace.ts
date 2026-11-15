@@ -14,8 +14,10 @@ export type AgentEvent =
       status: StepStatus;
       title?: string | null;
       detail?: string | null;
+      /** Sites / services this step works with (logos in the step header, see SiteLogo). */
+      sources?: string[];
     }
-  | { type: "log"; step: string; text: string; kind?: LogKind }
+  | { type: "log"; step: string; text: string; kind?: LogKind; source?: string }
   | {
       type: "agent";
       step: string;
@@ -25,6 +27,8 @@ export type AgentEvent =
       detail?: string | null;
       /** The node the sub-agents report to (e.g. "Orchestrator", "Oumi Iris"). */
       hub?: string;
+      /** The site this sub-agent works on (its logo is shown on the node). */
+      source?: string;
     }
   | { type: "draft"; channel: string; to: string; subject: string; body: string }
   | { type: "result"; [key: string]: unknown }
@@ -34,6 +38,7 @@ export interface TraceItem {
   id: number;
   text: string;
   kind: LogKind;
+  source?: string;
 }
 
 /** A collaborating sub-agent inside a step, drawn as a node linked to the step's hub. */
@@ -42,6 +47,7 @@ export interface TraceAgent {
   label: string;
   status: StepStatus;
   detail: string | null;
+  source?: string;
 }
 
 export interface TraceStep {
@@ -52,6 +58,7 @@ export interface TraceStep {
   items: TraceItem[];
   hub?: string;
   agents?: TraceAgent[];
+  sources?: string[];
 }
 
 let itemSeq = 0;
@@ -71,14 +78,17 @@ export function applyTraceEvent(steps: TraceStep[], e: AgentEvent): TraceStep[] 
       status: e.status,
       title: e.title || current.title,
       detail: e.detail ?? current.detail,
+      sources: e.sources ?? current.sources,
     };
   } else if (e.type === "agent") {
     const agents = current.agents ?? [];
+    const previous = agents.find((a) => a.id === e.agent);
     const agent: TraceAgent = {
       id: e.agent,
       label: e.label,
       status: e.status,
-      detail: e.detail ?? agents.find((a) => a.id === e.agent)?.detail ?? null,
+      detail: e.detail ?? previous?.detail ?? null,
+      source: e.source ?? previous?.source,
     };
     const at = agents.findIndex((a) => a.id === e.agent);
     next = {
@@ -89,7 +99,10 @@ export function applyTraceEvent(steps: TraceStep[], e: AgentEvent): TraceStep[] 
   } else {
     next = {
       ...current,
-      items: [...current.items, { id: ++itemSeq, text: e.text, kind: e.kind ?? "info" }],
+      items: [
+        ...current.items,
+        { id: ++itemSeq, text: e.text, kind: e.kind ?? "info", source: e.source },
+      ],
     };
   }
   if (index < 0) return [...steps, next];
