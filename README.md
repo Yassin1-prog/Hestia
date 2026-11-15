@@ -1,7 +1,7 @@
 # Hestia — Autonomous Housing Agent
 
 > **Describe the home. The agent does the rest.**  
-> Built with **FastAPI** and **Next.js 15**, **Hestia** turns a natural language prompt into  apartment matches from **real, live market data**, while at the same time checking their legitimacy. The app was designed to follow a human-in-the-loop architecture so that humans can always audit who/how the agent conctacts the landlords.
+>  **Hestia** turns a natural language prompt into  apartment matches from **real, live market data**, while at the same time checking their legitimacy. The app was designed to follow a human-in-the-loop architecture so that humans can always audit who/how the agent conctacts the landlords.
 ---
 
 ## Why Hestia
@@ -10,22 +10,6 @@
 - **Post-ranker scam defense (`Oumi Iris`):** Underpriced bait listings often rank #1 on portals. **Oumi's `Iris` Decision Model** screens shortlisted homes against real neighborhood pricing and flags/demotes suspected scams (`≥ 50%` risk).
 - **Human-in-the-loop outreach:** You stay in control—approve or add questions (`missing_info`), match conflict-free **Google Calendar** viewing slots, and send tailored requests via **Resend** email (or preview a **live LLM voice-call** mockup), while flagged scams stay **locked to draft-only**.
 
----
-
-## Pipeline
-
-```mermaid
-flowchart TD
-    U["User Prompt, Preferences & Google Calendar"] --> S1["1. Understand (Gemini)<br/>Translate natural language into selection filters"]
-    S1 --> S2["2. Scan (Firecrawl + Gemini)<br/>Fetch live market listings"]
-    S2 --> S3["3. Rank & Inspect (Parallel Agents)<br/>Shortlist top matches, deep-scrape details & flag missing info"]
-    S3 --> S4["4. Scam Check (Oumi Iris)<br/>Screen price & scam signals against market cohort"]
-    S4 -->|Safe| S5["5. Verified Shortlist<br/>Ranked homes ready for approval"]
-    S4 -->|Possible Scam| S5Q["Demoted with Warning & Draft-Only Lock"]
-    S5 --> S6["6. Outreach Agent<br/>Approve questions → Match calendar slots → Email / Live Voice Call"]
-```
-
----
 
 ## Walkthrough
 
@@ -55,6 +39,23 @@ Clicking **Ask Agent to Contact** lets you review or edit the agent's questions,
 
 - **Backend (`backend/`):** FastAPI pipeline (`agent.py`), Oumi Iris gate ([`OUMI_IRIS_INTEGRATION.md`](./OUMI_IRIS_INTEGRATION.md)), photo proxy (`photos.py`), and outreach engine ([`OUTREACH.md`](./OUTREACH.md)).
 - **Frontend (`frontend/`):** Next.js 15 live agent feed, swarm graph, cards & outreach workspace ([`FRONTEND.md`](./FRONTEND.md)).
+
+---
+
+---
+
+## Pipeline
+
+```mermaid
+flowchart TD
+    U["User Prompt, Preferences & Google Calendar"] --> S1["1. Understand (Gemini)<br/>Translate natural language into selection filters"]
+    S1 --> S2["2. Scan (Firecrawl + Gemini)<br/>Fetch live market listings"]
+    S2 --> S3["3. Rank & Inspect (Parallel Agents)<br/>Shortlist top matches, deep-scrape details & flag missing info"]
+    S3 --> S4["4. Scam Check (Oumi Iris)<br/>Screen price & scam signals against market cohort"]
+    S4 -->|Safe| S5["5. Verified Shortlist<br/>Ranked homes ready for approval"]
+    S4 -->|Possible Scam| S5Q["Demoted with Warning & Draft-Only Lock"]
+    S5 --> S6["6. Outreach Agent<br/>Approve questions → Match calendar slots → Email / Live Voice Call"]
+```
 
 ---
 
