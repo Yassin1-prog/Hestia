@@ -91,7 +91,7 @@ class Spitogatos(ListingSource):
         log(f"Opening {_bare(url)}")
         markdown = get_markdown(url)
         kb = len(markdown) // 1000 or 1
-        log(f"Results page downloaded ({kb} KB); Gemini is reading the listing cards")
+        log(f"Results page downloaded ({kb} KB); the agent is reading the listing cards")
         return ScanResult(url, _extract_cards(markdown, "Spitogatos"), card_thumbnails(markdown), kb)
 
 
@@ -259,7 +259,7 @@ class Xe(ListingSource):
         if listings:
             log(f"Results page downloaded ({kb} KB); read {len(listings)} listings from its data")
             return ScanResult(url, listings, thumbs, kb)
-        log("No structured data on the page: Gemini is reading the listing cards", "warn")
+        log("No structured data on the page: the agent is reading the listing cards", "warn")
         return ScanResult(url, _extract_cards(page.markdown, "xe.gr"), card_thumbnails(page.markdown), kb)
 
 
@@ -325,7 +325,7 @@ class Booking(ListingSource):
         start = markdown.find("booking.com/hotel/")
         cards = markdown[max(0, start - 1500):] if start >= 0 else markdown
         cards = _BOOKING_HOTEL_RE.sub(r"\1", _MD_IMAGE_RE.sub("", cards))
-        log(f"Results page downloaded ({kb} KB); Gemini is reading the listing cards")
+        log(f"Results page downloaded ({kb} KB); the agent is reading the listing cards")
         hint = (
             f"Prices shown are the total for a {STAY_NIGHTS}-night stay: report that total as the price. "
             "Only include links to booking.com/hotel/ property pages."

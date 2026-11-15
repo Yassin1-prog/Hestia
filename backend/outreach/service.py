@@ -26,19 +26,20 @@ from backend.outreach.channels import ResendEmailSender, SendResult, TwilioSmsSe
 from backend.outreach.contacts import ExtractedContacts, to_dict, extract_contacts
 from backend.outreach.messages import OutreachContext, compose_email, compose_sms
 
-Channel = Literal["sms", "email"]
+# "call" is a live voice call the browser places through Vapi (the server only writes its brief).
+Channel = Literal["sms", "email", "call"]
 AttemptStatus = Literal["sent", "dry_run", "skipped", "failed"]
 OutreachStatus = Literal["contacted", "dry_run", "no_contact", "failed"]
 
 
-ALL_CHANNELS: tuple[Channel, ...] = ("sms", "email")
-DEFAULT_CHANNELS: tuple[Channel, ...] = ("email",)
+ALL_CHANNELS: tuple[Channel, ...] = ("sms", "email", "call")
+DEFAULT_CHANNELS: tuple[Channel, ...] = ("email", "call")
 
 
 class OutreachSettings(BaseModel):
     dry_run: bool = True
-    # Channels enabled on this server (OUTREACH_CHANNELS). E-mail only by default: SMS is disabled
-    # for now (the Twilio adapter is kept; opt back in with OUTREACH_CHANNELS=sms,email).
+    # Channels enabled on this server (OUTREACH_CHANNELS). E-mail + voice call by default: SMS is
+    # disabled for now (the Twilio adapter is kept; opt back in with OUTREACH_CHANNELS=sms,email,call).
     channels: list[Channel] = Field(default_factory=lambda: list(DEFAULT_CHANNELS))
     override_phone: Optional[str] = None
     override_email: Optional[str] = None
@@ -64,7 +65,7 @@ class ChannelAttempt(BaseModel):
     status: AttemptStatus
     to: Optional[str] = Field(default=None, description="Actual recipient (after any override).")
     intended_to: Optional[str] = Field(default=None, description="The landlord's own contact.")
-    provider_id: Optional[str] = Field(default=None, description="Twilio SID / Resend id.")
+    provider_id: Optional[str] = Field(default=None, description="Twilio SID / Resend id / Vapi web call.")
     detail: Optional[str] = None
     subject: Optional[str] = None
     body: Optional[str] = Field(default=None, description="Exact text sent (or that would be).")
@@ -139,7 +140,10 @@ class ListingOutreachAgent:
         return self.result(contacts, attempts)
 
     async def send(self, client: httpx.AsyncClient, contacts: ExtractedContacts) -> list[ChannelAttempt]:
-        """Sends on every channel of this agent; SMS + e-mail go out in parallel."""
+        """Sends on every channel of this agent; SMS + e-mail go out in parallel.
+
+        Voice calls are placed by the browser (see `live.py`), so "call" is not sent from here.
+        """
         tasks = []
         if "sms" in self.channels:
             tasks.append(self._sms(client, contacts))

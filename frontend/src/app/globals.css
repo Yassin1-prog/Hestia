@@ -3790,3 +3790,218 @@ a.contact-phone:hover {
   gap: 5px;
   color: var(--text-soft);
 }
+
+/* --------------------------------------------------------------------------
+   Voice call (useVoiceCall / VoiceCallPanel)
+   -------------------------------------------------------------------------- */
+.call-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--emerald-line);
+  border-radius: 11px;
+  background: var(--emerald-soft);
+  color: var(--emerald);
+  font-size: 13.5px;
+  font-weight: 600;
+  transition:
+    transform 0.2s var(--ease),
+    background-color 0.2s;
+}
+
+.call-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(62, 207, 142, 0.2);
+}
+
+.call-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-call {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(400px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid var(--emerald-line);
+  border-radius: var(--radius);
+  background: rgba(10, 14, 12, 0.94);
+  backdrop-filter: blur(16px);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  animation: toast 0.4s var(--ease) both;
+}
+
+.voice-call-ended {
+  border-color: var(--border-strong);
+}
+
+.voice-call-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.voice-call-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 12px var(--emerald);
+  animation: voice-pulse 1.6s ease-in-out infinite;
+}
+
+.voice-call-connecting .voice-call-dot {
+  background: var(--gold);
+  box-shadow: 0 0 12px var(--gold);
+}
+
+.voice-call-ended .voice-call-dot {
+  background: var(--faint);
+  box-shadow: none;
+  animation: none;
+}
+
+.voice-call-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-call-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.voice-call-engine {
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: none;
+}
+
+.voice-call-title {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-call-hangup {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #1a0806;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.voice-call-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--emerald);
+  font-size: 12px;
+}
+
+.voice-call-ended .voice-call-status {
+  color: var(--muted);
+}
+
+.voice-call-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  padding: 10px;
+  overflow-y: auto;
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+}
+
+.voice-call-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.voice-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 88%;
+  padding: 7px 10px;
+  border: 1px solid var(--emerald-line);
+  border-radius: var(--radius-sm);
+  background: var(--emerald-soft);
+  line-height: 1.4;
+}
+
+.voice-turn-landlord {
+  align-self: flex-end;
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+}
+
+.voice-turn-who {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+@keyframes voice-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (max-width: 640px) {
+  .voice-call {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-call-dot {
+    animation: none;
+  }
+}
+
+.voice-call-sound {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-sm);
+  background: var(--gold-soft);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}

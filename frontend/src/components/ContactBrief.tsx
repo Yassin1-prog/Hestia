@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, MessageCircleQuestion, Plus, Send, ShieldAlert, X } from "lucide-react";
+import { Check, MessageCircleQuestion, PhoneCall, Plus, Send, ShieldAlert, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { scamWarningText } from "@/lib/format";
-import type { Property } from "@/lib/types";
+import type { OutreachChannel, Property } from "@/lib/types";
 
 const DEFAULT_QUESTIONS = [
   "Is the apartment still available?",
@@ -37,15 +37,24 @@ interface ContactBriefProps {
   property: Property;
   /** Questions approved for this listing before (a retry), if any. */
   initial?: string[];
+  /** E-mail the landlord (default) or call them: the same questions, asked on the phone. */
+  channel?: OutreachChannel;
   onSend: (questions: string[]) => void;
   onCancel: () => void;
 }
 
 /**
- * The approval gate before the outreach agent writes to a landlord: review the questions it
- * will ask, untick any, and add your own.
+ * The approval gate before the outreach agent writes to (or calls) a landlord: review the
+ * questions it will ask, untick any, and add your own.
  */
-export function ContactBrief({ property, initial, onSend, onCancel }: ContactBriefProps) {
+export function ContactBrief({
+  property,
+  initial,
+  channel = "email",
+  onSend,
+  onCancel,
+}: ContactBriefProps) {
+  const calling = channel === "call";
   const [questions, setQuestions] = useState<Question[]>(() => {
     const ranker = property.missing_info.length ? property.missing_info : DEFAULT_QUESTIONS;
     const base = ranker.map((text) => ({ text, checked: true, mine: false }));
@@ -83,14 +92,21 @@ export function ContactBrief({ property, initial, onSend, onCancel }: ContactBri
   };
 
   return (
-    <section className="brief" aria-label="Questions for the landlord">
+    <section
+      className="brief"
+      aria-label={calling ? "Questions to ask on the call" : "Questions for the landlord"}
+    >
       <header className="brief-head">
         <MessageCircleQuestion size={15} strokeWidth={1.75} />
         <div>
-          <p className="brief-title">What should the agent ask?</p>
+          <p className="brief-title">
+            {calling ? "What should the agent ask on the call?" : "What should the agent ask?"}
+          </p>
           <p className="brief-sub">
-            It will also propose viewing times from your calendar. Untick anything you don&apos;t
-            need.
+            {calling
+              ? "It will ask these one at a time, then propose viewing times from your calendar. "
+              : "It will also propose viewing times from your calendar. "}
+            Untick anything you don&apos;t need.
           </p>
         </div>
       </header>
@@ -185,8 +201,20 @@ export function ContactBrief({ property, initial, onSend, onCancel }: ContactBri
             type="button"
             className="approve-btn"
             onClick={() => onSend(selected.map((q) => q.text))}
+            disabled={calling && scamLocked}
+            title={calling && scamLocked ? "Oumi Iris flagged this listing: no call" : undefined}
           >
-            {scamLocked ? (
+            {calling ? (
+              scamLocked ? (
+                <>
+                  <ShieldAlert size={14} strokeWidth={1.75} /> Call blocked
+                </>
+              ) : (
+                <>
+                  <PhoneCall size={14} strokeWidth={1.75} /> Start call
+                </>
+              )
+            ) : scamLocked ? (
               <>
                 <ShieldAlert size={14} strokeWidth={1.75} /> Draft e-mail only
               </>

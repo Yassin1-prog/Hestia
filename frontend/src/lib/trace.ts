@@ -4,6 +4,8 @@
  * of events still reads as an agent working step by step.
  */
 
+import type { CallBrief } from "./types";
+
 export type StepStatus = "running" | "done" | "skipped" | "failed";
 export type LogKind = "info" | "ok" | "warn";
 
@@ -31,6 +33,8 @@ export type AgentEvent =
       source?: string;
     }
   | { type: "draft"; channel: string; to: string; subject: string; body: string }
+  /** The voice agent's brief (backend/outreach/live.py): the browser places the call with it. */
+  | ({ type: "call" } & CallBrief)
   | { type: "result"; [key: string]: unknown }
   | { type: "error"; detail?: string };
 

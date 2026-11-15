@@ -56,6 +56,23 @@ export function EmailDraftView({ draft, animate }: { draft: EmailDraft; animate:
 
 export function outcomeText(outcome: EmailOutcome | undefined): { text: string; tone: string } {
   const scamLocked = isScamLockedOutcome(outcome);
+  if (outcome?.channel === "call") {
+    switch (outcome.state) {
+      case "sending":
+        return { text: "The agent is calling the landlord", tone: "pending" };
+      case "sent":
+      case "demo":
+        return { text: "Voice call placed with the landlord", tone: "ok" };
+      case "dry_run":
+        return scamLocked
+          ? { text: "Call not placed (Oumi Iris scam lock)", tone: "warn" }
+          : { text: "Call not placed (server dry run)", tone: "muted" };
+      case "no_contact":
+        return { text: `Call not placed${outcome.detail ? `: ${outcome.detail}` : ""}`, tone: "warn" };
+      case "failed":
+        return { text: `Call failed${outcome.detail ? `: ${outcome.detail}` : ""}`, tone: "error" };
+    }
+  }
   switch (outcome?.state) {
     case "sending":
       return { text: "The agent is contacting the landlord", tone: "pending" };

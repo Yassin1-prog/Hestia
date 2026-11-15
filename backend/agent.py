@@ -78,6 +78,11 @@ class MetricScore(BaseModel):
 
 class PropertyDetails(BaseModel):
     url: str
+    location: Optional[str] = Field(
+        default=None,
+        description="The neighbourhood and city in English, e.g. 'Pangrati, Athens' (plus the street "
+        "if the listing shows it, e.g. 'Pangrati, Archimidous St.').",
+    )
     price: Optional[int] = Field(description="The rental price in Euros (number only).")
     sqm: Optional[int] = Field(description="The square meters.")
     floor: Optional[str] = Field(description="The floor (e.g., 1st, Ground floor).")
@@ -316,6 +321,7 @@ def _inspect_listing(
         prompt_details = f"""
         The user requests: '{user_request}'.
         Confirm if this listing matches (score it 1-10).
+        Note the neighbourhood (area) the apartment is in, in English.
         Find the name, phone number and e-mail of the landlord / agent who posted it
         (NOT the website's own support contacts).
         List the important details the user cares about that the listing does not mention,
@@ -420,7 +426,7 @@ def run_search(user_request: str, emit: Optional[Emit] = None, verbose: bool = F
 
     # STEP 1: Plan the search once; every site builds its own URL from the plan.
     progress.start("understand", STEP_TITLES["understand"], "Turning your request into search filters")
-    progress.log("understand", f"Gemini is translating your request into filters for {_names(sources)}")
+    progress.log("understand", f"The agent is translating your request into filters for {_names(sources)}")
     log("1. The Agent is planning the search...")
     prompt_plan = f"""
     The user requests: '{user_request}'.
@@ -550,6 +556,8 @@ def run_search(user_request: str, emit: Optional[Emit] = None, verbose: bool = F
     results = [
         {
             **p.model_dump(),
+            # The landlord (and the voice agent on a call) needs to know which flat this is.
+            "location": p.location or plan.area,
             **verdicts.get(p.url, {}),
             "images": photos_by_url.get(p.url, []),
             **_site_fields(p.url),

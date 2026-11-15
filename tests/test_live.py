@@ -155,6 +155,59 @@ def test_stream_outreach_sends_with_resend():
     assert events[-1]["attempts"][0]["provider_id"] == "re_1"
 
 
+def _no_http(request: httpx.Request) -> httpx.Response:
+    raise AssertionError(f"a voice call must not send anything from the server: {request.url}")
+
+
+def test_stream_outreach_call_writes_voice_brief_instead_of_email():
+    events = collect(
+        stream_listing_outreach(
+            {**LISTING, "agent_phone": "6941234567", "location": "Koukaki, Athens"},
+            CTX,
+            channels=["call"],
+            settings=OutreachSettings(dry_run=False, channels=["email", "call"]),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(_no_http)),
+            now=NOW,
+        )
+    )
+    started = [e["step"] for e in events if e["type"] == "step" and e["status"] == "running"]
+    assert started == ["brief", "calendar", "call"]  # No e-mail contact / draft / send.
+    assert not any(e["type"] == "draft" for e in events)
+    call = next(e for e in events if e["type"] == "call")
+    assert call["to"] == "+306941234567"
+    assert "Nikos" in call["system_prompt"] and "Are pets allowed?" in call["system_prompt"]
+    assert "Tue 17 Nov, 18:00-20:00" in call["system_prompt"]
+    assert call["questions"] == ["Are pets allowed?"]
+    # The apartment is named by its area and price, not by the price alone.
+    assert "apartment in Koukaki, Athens for 600 euros a month" in call["first_message"]
+    assert "Area: Koukaki, Athens" in call["system_prompt"]
+    result = events[-1]
+    assert result["type"] == "result" and result["status"] == "contacted"
+    assert [a["channel"] for a in result["attempts"]] == ["call"]
+
+
+def test_stream_outreach_call_is_held_back_when_disabled_or_flagged():
+    def run(listing, channels):
+        return collect(
+            stream_listing_outreach(
+                listing,
+                CTX,
+                channels=["call"],
+                settings=OutreachSettings(dry_run=False, channels=channels),
+                client=httpx.AsyncClient(transport=httpx.MockTransport(_no_http)),
+                now=NOW,
+            )
+        )
+
+    disabled = run(LISTING, ["email"])
+    assert not any(e["type"] == "call" for e in disabled)
+    assert disabled[-1]["status"] == "no_contact"
+
+    flagged = run({**LISTING, "scam_verdict": "POSSIBLY_SCAM"}, ["email", "call"])
+    assert not any(e["type"] == "call" for e in flagged)
+    assert flagged[-1]["attempts"][0]["status"] == "dry_run"
+
+
 def test_stream_outreach_demo_listing_is_never_sent():
     demo = {**LISTING, "agent_email": "eleni@example.com", "url": "https://x.gr/a?demo=1"}
     events = collect(

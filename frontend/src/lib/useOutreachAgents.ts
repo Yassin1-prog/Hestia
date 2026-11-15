@@ -3,9 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BackendUnavailable, isDemoListing, streamOutreach, type OutreachEvent } from "./api";
-import { demoOutreachEvents, offlineOutreachEvents } from "./demoAgent";
+import { demoCallEvents, demoOutreachEvents, offlineOutreachEvents } from "./demoAgent";
 import { applyTraceEvent, Pacer } from "./trace";
-import type { EmailOutcome, OutreachRun, Profile, Property } from "./types";
+import type {
+  CallBrief,
+  EmailOutcome,
+  OutreachChannel,
+  OutreachRun,
+  Profile,
+  Property,
+} from "./types";
 
 /** The outreach agent is fast on the server; pace it so each action can be read. */
 function gapFor(e: OutreachEvent): number {
@@ -23,17 +30,21 @@ function gapFor(e: OutreachEvent): number {
 
 /**
  * One outreach agent per listing, running in parallel. `onFinished` receives the final
- * outcome (to persist it on the viewing and notify the user).
+ * outcome (to persist it on the viewing and notify the user). On a voice call, `onCall`
+ * receives the voice agent's brief so the page can place the call (useVoiceCall).
  */
 export function useOutreachAgents(
   profile: Profile,
   onFinished: (property: Property, outcome: EmailOutcome) => void,
+  onCall?: (property: Property, brief: CallBrief) => void,
 ) {
   const [runs, setRuns] = useState<Record<string, OutreachRun>>({});
   const pacers = useRef(new Map<string, Pacer<OutreachEvent>>());
   const aborts = useRef(new Map<string, AbortController>());
   const onFinishedRef = useRef(onFinished);
   onFinishedRef.current = onFinished;
+  const onCallRef = useRef(onCall);
+  onCallRef.current = onCall;
 
   useEffect(() => {
     const p = pacers.current;
@@ -45,7 +56,7 @@ export function useOutreachAgents(
   }, []);
 
   const start = useCallback(
-    async (property: Property, questions?: string[]) => {
+    async (property: Property, questions?: string[], channel: OutreachChannel = "email") => {
       const url = property.url;
       aborts.current.get(url)?.abort();
       pacers.current.get(url)?.dispose();
@@ -57,7 +68,10 @@ export function useOutreachAgents(
       const newPacer = () => {
         pacers.current.get(url)?.dispose();
         const pacer = new Pacer<OutreachEvent>((e) => {
-          if (e.type === "draft") {
+          if (e.type === "call") {
+            const { type: _type, ...brief } = e;
+            onCallRef.current?.(property, brief);
+          } else if (e.type === "draft") {
             update((r) => ({ ...r, draft: { to: e.to, subject: e.subject, body: e.body } }));
           } else if (e.type === "outcome") {
             update((r) => ({ ...r, phase: "done", finishedAt: Date.now(), outcome: e.outcome }));
@@ -72,19 +86,28 @@ export function useOutreachAgents(
 
       setRuns((all) => ({
         ...all,
-        [url]: { steps: [], draft: null, phase: "running", startedAt: Date.now() },
+        [url]: { channel, steps: [], draft: null, phase: "running", startedAt: Date.now() },
       }));
       const pacer = newPacer();
       try {
-        await streamOutreach(property, profile, questions, controller.signal, (e) => pacer.push(e));
+        await streamOutreach(
+          property,
+          profile,
+          questions,
+          controller.signal,
+          (e) => pacer.push(e),
+          channel,
+        );
       } catch (err) {
         if (controller.signal.aborted || !(err instanceof BackendUnavailable)) return;
         const fallback = newPacer();
         setRuns((all) => (all[url] ? { ...all, [url]: { ...all[url], steps: [] } } : all));
         fallback.push(
-          ...(isDemoListing(property)
-            ? demoOutreachEvents(property, profile, questions)
-            : offlineOutreachEvents(err.message)),
+          ...(!isDemoListing(property)
+            ? offlineOutreachEvents(err.message)
+            : channel === "call"
+              ? demoCallEvents(property, profile, questions)
+              : demoOutreachEvents(property, profile, questions)),
         );
       }
     },

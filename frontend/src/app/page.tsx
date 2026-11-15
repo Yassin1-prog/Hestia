@@ -19,13 +19,17 @@ import { FavoritesPanel, SettingsPanel, ViewingsPanel } from "@/components/Panel
 import { PropertyCard } from "@/components/PropertyCard";
 import { PropertyDetails } from "@/components/PropertyDetails";
 import { TopNav, type PanelKey } from "@/components/TopNav";
+import { VoiceCallPanel } from "@/components/VoiceCallPanel";
 import { formatDuration, isScamLockedOutcome, propertyTitle } from "@/lib/format";
 import { usePersistentState } from "@/lib/storage";
 import { useOutreachAgents } from "@/lib/useOutreachAgents";
 import { useSearchAgent } from "@/lib/useSearchAgent";
+import { useVoiceCall, type VoiceCall } from "@/lib/useVoiceCall";
 import {
   EMPTY_PROFILE,
+  type CallBrief,
   type EmailOutcome,
+  type OutreachChannel,
   type Profile,
   type Property,
   type Viewing,
@@ -85,6 +89,16 @@ export default function HomePage() {
       );
       const title = propertyTitle(property);
       const scamLocked = property.scam_verdict === "POSSIBLY_SCAM" || isScamLockedOutcome(outcome);
+      if (outcome.channel === "call") {
+        notify(
+          outcome.state === "sent" || outcome.state === "demo"
+            ? `The agent is calling the landlord about ${title}: answer as the landlord.`
+            : scamLocked
+              ? `Oumi Iris flagged ${title} as a possible scam: the call was not placed.`
+              : `Could not call the landlord for ${title}${outcome.detail ? `: ${outcome.detail}` : "."}`,
+        );
+        return;
+      }
       notify(
         {
           sending: "",
@@ -103,41 +117,64 @@ export default function HomePage() {
     [setViewings, notify],
   );
 
-  const outreach = useOutreachAgents(profile, onOutreachFinished);
+  const voice = useVoiceCall(
+    useCallback((call: VoiceCall) => notify(`Voice call about ${call.title} ended.`), [notify]),
+  );
+  const startVoiceCall = voice.start;
+  const primeCall = voice.prime;
+  const onCall = useCallback(
+    (property: Property, brief: CallBrief) =>
+      void startVoiceCall(propertyTitle(property), brief, profile.name.trim() || "my client"),
+    [startVoiceCall, profile.name],
+  );
+
+  const outreach = useOutreachAgents(profile, onOutreachFinished, onCall);
 
   /** Retry from Contact Requests, reusing the questions approved the first time. */
   const contactLandlord = useCallback(
     (property: Property) => {
       const previous = viewings.find((x) => x.property.url === property.url);
+      const channel = previous?.channel ?? "email";
+      if (channel === "call") primeCall();
       setViewings((v) =>
-        v.map((x) => (x.property.url === property.url ? { ...x, email: { state: "sending" } } : x)),
+        v.map((x) =>
+          x.property.url === property.url ? { ...x, email: { state: "sending", channel } } : x,
+        ),
       );
-      void outreach.start(property, previous?.questions);
+      void outreach.start(property, previous?.questions, channel);
     },
-    [viewings, setViewings, outreach],
+    [viewings, setViewings, outreach, primeCall],
   );
 
   const approve = useCallback(
-    (property: Property, questions: string[]) => {
+    (property: Property, channel: OutreachChannel, questions: string[]) => {
       if (approvedUrls.has(property.url)) return;
-      if (!profile.name.trim() || !profile.email.trim()) {
+      // The agent introduces you by name on a call; an e-mail also needs your address for replies.
+      if (!profile.name.trim() || (channel === "email" && !profile.email.trim())) {
         setDetails(null);
         setPanel("settings");
-        notify("Add your name and e-mail first, so the landlord can reply to you.");
+        notify(
+          channel === "call"
+            ? "Add your name first, so the agent can introduce you to the landlord."
+            : "Add your name and e-mail first, so the landlord can reply to you.",
+        );
         return;
       }
+      // Still inside the click: unlock audio now, the call starts once the brief is written.
+      if (channel === "call") primeCall();
       setViewings((v) => [
         {
           property,
           requestedAt: new Date().toISOString(),
-          email: { state: "sending" },
+          email: { state: "sending", channel },
           questions,
+          channel,
         },
         ...v,
       ]);
-      void outreach.start(property, questions);
+      void outreach.start(property, questions, channel);
     },
-    [approvedUrls, profile, setViewings, notify, outreach],
+    [approvedUrls, profile, setViewings, notify, outreach, primeCall],
   );
 
   const runSearch = useCallback(
@@ -271,7 +308,7 @@ export default function HomePage() {
                       approved={approvedUrls.has(p.url)}
                       favorite={favoriteUrls.has(p.url)}
                       run={outreach.runs[p.url]}
-                      onApprove={(questions) => approve(p, questions)}
+                      onApprove={(channel, questions) => approve(p, channel, questions)}
                       onToggleFavorite={() => toggleFavorite(p)}
                       onShowDetails={() => setDetails({ property: p, rank: i + 1, brief: false })}
                     />
@@ -371,9 +408,20 @@ export default function HomePage() {
         favorite={!!details && favoriteUrls.has(details.property.url)}
         run={details ? outreach.runs[details.property.url] : undefined}
         onClose={closeDetails}
-        onApprove={(questions) => details && approve(details.property, questions)}
+        onApprove={(channel, questions) =>
+          details && approve(details.property, channel, questions)
+        }
         onToggleFavorite={() => details && toggleFavorite(details.property)}
       />
+
+      {voice.call && (
+        <VoiceCallPanel
+          call={voice.call}
+          onHangUp={voice.stop}
+          onDismiss={voice.dismiss}
+          onEnableSound={voice.enableSound}
+        />
+      )}
 
       {toast && (
         <div className="toast" role="status" key={toast.id}>

@@ -78,8 +78,13 @@ export type EmailState =
   /** Demo listing: nothing is sent. */
   | "demo";
 
+/** How the outreach agent contacts the landlord: one or the other, never both. */
+export type OutreachChannel = "email" | "call";
+
 export interface EmailOutcome {
   state: EmailState;
+  /** Missing on outcomes saved before voice calls existed (those were e-mails). */
+  channel?: OutreachChannel;
   /** Actual recipient after any server-side override (OUTREACH_OVERRIDE_EMAIL). */
   to?: string | null;
   detail?: string | null;
@@ -96,8 +101,20 @@ export interface EmailDraft {
   body: string;
 }
 
+/** What the voice agent says on a call (streamed by the outreach agent's `call` step). */
+export interface CallBrief {
+  /** The landlord's number on the listing, if any (the demo call runs in the browser). */
+  to?: string | null;
+  landlord?: string | null;
+  system_prompt: string;
+  first_message: string;
+  questions: string[];
+  viewing_windows: string[];
+}
+
 /** One live outreach agent working on one listing (in memory, not persisted). */
 export interface OutreachRun {
+  channel: OutreachChannel;
   steps: TraceStep[];
   draft: EmailDraft | null;
   phase: "running" | "done";
@@ -113,6 +130,8 @@ export interface Viewing {
   email?: EmailOutcome;
   /** The questions the user approved for the landlord (reused on retry). */
   questions?: string[];
+  /** E-mail or voice call (reused on retry). Missing on viewings saved before calls existed. */
+  channel?: OutreachChannel;
 }
 
 export const EMPTY_PROFILE: Profile = {

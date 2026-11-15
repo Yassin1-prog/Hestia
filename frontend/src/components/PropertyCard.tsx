@@ -10,6 +10,8 @@ import {
   Mail,
   MapPin,
   Maximize2,
+  Phone,
+  PhoneCall,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -30,7 +32,7 @@ import { ListingPhoto } from "@/components/ListingPhoto";
 import { SiteBadge, siteForUrl } from "@/components/SiteLogo";
 import { OutreachWorkspace } from "@/components/OutreachWorkspace";
 import { useTilt } from "@/lib/motion";
-import type { OutreachRun, Property } from "@/lib/types";
+import type { OutreachChannel, OutreachRun, Property } from "@/lib/types";
 
 interface PropertyCardProps {
   property: Property;
@@ -39,8 +41,8 @@ interface PropertyCardProps {
   favorite: boolean;
   /** The live outreach agent for this listing, if one was started in this session. */
   run?: OutreachRun;
-  /** Called once the user approved the questions in the briefing. */
-  onApprove: (questions: string[]) => void;
+  /** Called once the user approved the questions in the briefing (for an e-mail or a call). */
+  onApprove: (channel: OutreachChannel, questions: string[]) => void;
   onToggleFavorite: () => void;
   onShowDetails: () => void;
 }
@@ -56,7 +58,8 @@ export function PropertyCard({
   onShowDetails,
 }: PropertyCardProps) {
   const working = run?.phase === "running";
-  const [briefing, setBriefing] = useState(false);
+  /** The question briefing is open, for an e-mail or a call. */
+  const [briefing, setBriefing] = useState<OutreachChannel | null>(null);
   const tilt = useTilt();
   const tier = scoreTier(p.agentic_score);
   const starGradientId = useId();
@@ -172,10 +175,15 @@ export function PropertyCard({
               <Mail size={14} strokeWidth={1.75} />
               {p.agent_email}
             </a>
+          ) : p.agent_phone ? (
+            <span className="contact-phone" title="The agent can call this landlord">
+              <Phone size={14} strokeWidth={1.75} />
+              {p.agent_phone}
+            </span>
           ) : (
             <span
               className="contact-phone contact-missing"
-              title="The agent can only reach landlords by e-mail"
+              title="No e-mail on the listing: the agent can still place a voice call"
             >
               <Mail size={14} strokeWidth={1.75} />
               No e-mail listed
@@ -215,8 +223,8 @@ export function PropertyCard({
           <button
             type="button"
             className={`approve-btn${approved || working ? " is-approved" : ""}`}
-            onClick={() => setBriefing(true)}
-            disabled={approved || working || briefing}
+            onClick={() => setBriefing("email")}
+            disabled={approved || working || !!briefing}
           >
             {/* Keyed so the label cross-fades when the state changes. */}
             <span className="btn-swap" key={working ? "w" : approved ? "a" : "n"}>
@@ -231,7 +239,8 @@ export function PropertyCard({
                   </>
                 ) : (
                   <>
-                    <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                    <Check size={15} strokeWidth={2} className="check-draw" />{" "}
+                    {run?.channel === "call" ? "Agent Called" : "Agent Contacted"}
                   </>
                 )
               ) : (
@@ -241,16 +250,28 @@ export function PropertyCard({
               )}
             </span>
           </button>
+          {!approved && !working && (
+            <button
+              type="button"
+              className="call-btn"
+              onClick={() => setBriefing("call")}
+              disabled={!!briefing}
+              title="Have the agent call the landlord now (live voice call)"
+            >
+              <PhoneCall size={15} strokeWidth={1.75} /> Call
+            </button>
+          )}
         </div>
       </footer>
 
       {briefing && !run && !approved && (
         <ContactBrief
           property={p}
-          onCancel={() => setBriefing(false)}
+          channel={briefing}
+          onCancel={() => setBriefing(null)}
           onSend={(questions) => {
-            setBriefing(false);
-            onApprove(questions);
+            setBriefing(null);
+            onApprove(briefing, questions);
           }}
         />
       )}

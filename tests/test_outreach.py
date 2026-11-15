@@ -215,7 +215,8 @@ def test_dry_run_sends_nothing_and_reports_per_channel_status():
 
 def test_disabled_channel_is_dropped_even_if_requested(monkeypatch):
     monkeypatch.delenv("OUTREACH_CHANNELS", raising=False)
-    assert OutreachSettings.from_env().channels == ["email"]  # SMS is off by default.
+    # SMS is off by default; e-mail and the browser voice call are on.
+    assert OutreachSettings.from_env().channels == ["email", "call"]
 
     monkeypatch.setenv("OUTREACH_CHANNELS", "sms")
     settings = OutreachSettings.from_env()

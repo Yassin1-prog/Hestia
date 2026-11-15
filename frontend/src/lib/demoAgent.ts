@@ -84,7 +84,7 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
   perSite.booking = Math.max(0, scanned - perSite.spitogatos - perSite.xe);
 
   s.start("understand", "Reading your request", "Turning your request into search filters")
-    .log("understand", `Gemini is translating your request into filters for ${names}`)
+    .log("understand", `The agent is translating your request into filters for ${names}`)
     .log("understand", `Area: ${areaLabel}, Athens`);
   if (maxPrice) s.log("understand", `Max price: €${maxPrice}/month`);
   sites.forEach((k) => s.log("understand", `${SITES[k].name} search planned`, "ok", k));
@@ -121,13 +121,13 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
     )
     .log(
       "scan",
-      `Spitogatos: Results page downloaded (${18 + scanned} KB); Gemini is reading the listing cards`,
+      `Spitogatos: Results page downloaded (${18 + scanned} KB); the agent is reading the listing cards`,
       "info",
       "spitogatos",
     )
     .log(
       "scan",
-      "Booking.com: Results page downloaded (340 KB); Gemini is reading the listing cards",
+      "Booking.com: Results page downloaded (340 KB); the agent is reading the listing cards",
       "info",
       "booking",
     );
@@ -451,6 +451,83 @@ export function demoOutreachEvents(
   s.events.push({
     type: "outcome",
     outcome: { state: "demo", to: p.agent_email, detail: lockDetail, windows: slots, ...email },
+  });
+  return s.events;
+}
+
+/** A demo listing's voice call while the backend is offline (mirrors live.py's call step). */
+export function demoCallEvents(p: Property, profile: Profile, approved?: string[]): DemoEvent[] {
+  const s = new Script();
+  const questions = approved ?? p.missing_info;
+  const scamLocked = p.scam_verdict === "POSSIBLY_SCAM";
+  const where = p.location || propertyTitle(p);
+  s.start("brief", "Reading the listing", "Collecting what the landlord needs to know")
+    .log("brief", `Listing: ${[where, p.sqm ? `${p.sqm} m²` : "", formatPrice(p.price)].filter(Boolean).join(" · ")}`)
+    .log("brief", `Calling on behalf of ${profile.name}`)
+    .log("brief", `${plural(questions.length, "question")} for the landlord`, "ok")
+    .done("brief", "Listing and profile loaded");
+
+  const { slots } = sampleSlots();
+  s.start("calendar", "Checking your calendar", "Looking for free evenings and weekend slots", [
+    "calendar",
+  ]).log("calendar", "Agent backend offline: using a sample work week", "warn");
+  slots.forEach((w) => s.log("calendar", `Free: ${w}`, "ok"));
+  s.done("calendar", `Found ${plural(slots.length, "free viewing slot")}`);
+
+  s.start("call", "Calling the landlord", "Preparing the voice agent (Vapi)").log(
+    "call",
+    "Live web call: you play the landlord through your microphone",
+    "warn",
+  );
+  if (scamLocked) {
+    const detail = "Not sent: Oumi Iris flagged this listing as a possible scam";
+    s.log("call", "Oumi Iris scam lock: the call is not placed", "warn").done(
+      "call",
+      "Held back: Oumi Iris flagged this listing",
+      "failed",
+    );
+    s.events.push({
+      type: "outcome",
+      outcome: { channel: "call", state: "dry_run", detail, windows: slots },
+    });
+    return s.events;
+  }
+  const name = profile.name || "my client";
+  // Named by area and price (and size): the landlord may have several flats on offer.
+  const apartment =
+    `${p.sqm ? `${p.sqm} square metre ` : ""}apartment` +
+    (p.location ? ` in ${p.location}` : "") +
+    (p.price ? ` for ${p.price} euros a month` : "");
+  const first = `Hello! I'm calling on behalf of ${name} about your ${apartment}. Is it still available?`;
+  const prompt =
+    `You are Domus AI, a polite, friendly real estate assistant on a phone call with the landlord ` +
+    `about their ${apartment}, calling on behalf of your client, ${name}.\n\n` +
+    `Goals, in order:\n1. Make sure the landlord knows which apartment you mean: always refer to ` +
+    `it by its area and price (never by the price alone), then confirm it is still available.\n` +
+    `2. Ask these open questions, one at a time:\n${questions.map((q) => `- ${q}`).join("\n") || "- (none: only ask for a viewing)"}\n` +
+    `3. Propose one of these viewing slots: ${slots.join("; ")}.\n` +
+    `4. Confirm what was agreed, thank them and say goodbye.\n\n` +
+    `Keep every turn short and natural, and never invent facts about the client or the apartment.`;
+  s.log("call", `Voice brief ready: ${plural(questions.length, "question")}`, "ok");
+  s.events.push({
+    type: "call",
+    to: null,
+    landlord: p.agent_name ?? null,
+    system_prompt: prompt,
+    first_message: first,
+    questions,
+    viewing_windows: slots,
+  });
+  s.done("call", "Voice agent on the line");
+  s.events.push({
+    type: "outcome",
+    outcome: {
+      channel: "call",
+      state: "sent",
+      detail: "Live voice call started in the browser",
+      windows: slots,
+      body: first,
+    },
   });
   return s.events;
 }

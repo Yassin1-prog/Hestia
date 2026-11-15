@@ -3,6 +3,7 @@ import { readNdjson, type AgentEvent } from "./trace";
 import type {
   EmailOutcome,
   EmailState,
+  OutreachChannel,
   Profile,
   Property,
   SearchResult,
@@ -199,6 +200,17 @@ function toOutcome(result: Record<string, unknown>, demo: boolean): EmailOutcome
   const windows = Array.isArray(result.viewing_windows)
     ? (result.viewing_windows as string[])
     : undefined;
+  const call = attempts.find((a) => a.channel === "call");
+  if (call) {
+    return {
+      channel: "call",
+      state: call.status === "skipped" ? "no_contact" : call.status,
+      to: call.to,
+      detail: call.detail,
+      windows,
+      body: call.body,
+    };
+  }
   const email = attempts.find((a) => a.channel === "email");
   if (!email) {
     return {
@@ -230,6 +242,9 @@ export type OutreachEvent = AgentEvent | { type: "outcome"; outcome: EmailOutcom
  * user's calendar, verifies the landlord's e-mail, drafts and sends the viewing request.
  * Whether it is really sent, and to whom, is decided by the server (OUTREACH_DRY_RUN,
  * OUTREACH_OVERRIDE_EMAIL); demo listings are always a dry run. Throws `BackendUnavailable`.
+ *
+ * With `channel: "call"` the agent phones the landlord instead: after the calendar it streams
+ * a `call` event (the voice agent's brief) and the browser places the call (useVoiceCall).
  */
 export async function streamOutreach(
   property: Property,
@@ -237,6 +252,7 @@ export async function streamOutreach(
   questions: string[] | undefined,
   signal: AbortSignal,
   onEvent: (event: OutreachEvent) => void,
+  channel: OutreachChannel = "email",
 ): Promise<void> {
   const demo = isDemoListing(property);
   let res: Response;
@@ -247,7 +263,7 @@ export async function streamOutreach(
       body: JSON.stringify({
         user: { name: profile.name.trim(), email: profile.email.trim() || null },
         properties: [property],
-        channels: ["email"],
+        channels: [channel],
         calendar_url: profile.calendarUrl?.trim() || null,
         questions: questions ?? null,
         demo,

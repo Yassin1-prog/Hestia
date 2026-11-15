@@ -10,6 +10,8 @@ import {
   MessageCircleQuestion,
   Minus,
   Plus,
+  Phone,
+  PhoneCall,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -32,7 +34,7 @@ import {
   scoreTier,
 } from "@/lib/format";
 import { useCountUp } from "@/lib/motion";
-import type { MetricScore, OutreachRun, Property } from "@/lib/types";
+import type { MetricScore, OutreachChannel, OutreachRun, Property } from "@/lib/types";
 
 function ScoreRing({ score }: { score: number }) {
   const r = 34;
@@ -111,7 +113,8 @@ interface PropertyDetailsProps {
   startWithBrief?: boolean;
   initialQuestions?: string[];
   onClose: () => void;
-  onApprove: (questions: string[]) => void;
+  /** Called once the user approved the questions in the briefing (for an e-mail or a call). */
+  onApprove: (channel: OutreachChannel, questions: string[]) => void;
   onToggleFavorite: () => void;
 }
 
@@ -128,7 +131,10 @@ export function PropertyDetails({
   onToggleFavorite,
 }: PropertyDetailsProps) {
   const open = !!property;
-  const [briefing, setBriefing] = useState(startWithBrief);
+  /** The question briefing is open, for an e-mail or a call. */
+  const [briefing, setBriefing] = useState<OutreachChannel | null>(
+    startWithBrief ? "email" : null,
+  );
   const bodyRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [shown, setShown] = useState<Property | null>(property);
@@ -142,7 +148,7 @@ export function PropertyDetails({
   }, [property]);
 
   useEffect(() => {
-    setBriefing(startWithBrief);
+    setBriefing(startWithBrief ? "email" : null);
   }, [property?.url, startWithBrief]);
 
   useEffect(() => {
@@ -213,10 +219,11 @@ export function PropertyDetails({
               <ContactBrief
                 property={p}
                 initial={initialQuestions}
-                onCancel={() => setBriefing(false)}
+                channel={briefing}
+                onCancel={() => setBriefing(null)}
                 onSend={(questions) => {
-                  setBriefing(false);
-                  onApprove(questions);
+                  setBriefing(null);
+                  onApprove(briefing, questions);
                 }}
               />
             )}
@@ -230,6 +237,10 @@ export function PropertyDetails({
                   <Mail size={14} strokeWidth={1.75} />
                   {p.agent_email}
                 </a>
+              ) : p.agent_phone ? (
+                <span className="contact-phone">
+                  <Phone size={14} strokeWidth={1.75} /> {p.agent_phone}
+                </span>
               ) : (
                 <span className="contact-phone contact-missing">
                   <Mail size={14} strokeWidth={1.75} /> No e-mail listed
@@ -259,8 +270,8 @@ export function PropertyDetails({
               <button
                 type="button"
                 className={`approve-btn${approved || working ? " is-approved" : ""}`}
-                onClick={() => setBriefing(true)}
-                disabled={approved || working || briefing}
+                onClick={() => setBriefing("email")}
+                disabled={approved || working || !!briefing}
               >
                 <span className="btn-swap" key={working ? "w" : approved ? "a" : "n"}>
                   {working ? (
@@ -274,7 +285,8 @@ export function PropertyDetails({
                       </>
                     ) : (
                       <>
-                        <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                        <Check size={15} strokeWidth={2} className="check-draw" />{" "}
+                        {run?.channel === "call" ? "Agent Called" : "Agent Contacted"}
                       </>
                     )
                   ) : (
@@ -284,6 +296,17 @@ export function PropertyDetails({
                   )}
                 </span>
               </button>
+              {!approved && !working && (
+                <button
+                  type="button"
+                  className="call-btn"
+                  onClick={() => setBriefing("call")}
+                  disabled={!!briefing}
+                  title="Have the agent call the landlord now (live voice call)"
+                >
+                  <PhoneCall size={15} strokeWidth={1.75} /> Call
+                </button>
+              )}
             </div>
           </footer>
         </div>
