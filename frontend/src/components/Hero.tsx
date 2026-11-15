@@ -28,10 +28,6 @@ export function Hero({ onSubmit }: HeroProps) {
   return (
     <section className="hero">
       <div className="hero-inner">
-        <p className="eyebrow">
-          <span className="eyebrow-dot" />
-          Searching Spitogatos, xe.gr &amp; Booking.com, screening scams, contacting landlords
-        </p>
         <h1 className="hero-title">
           Describe the home.
           <br />

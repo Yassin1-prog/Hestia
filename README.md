@@ -47,6 +47,24 @@ Clicking **Ask Agent to Contact** lets you review or edit the agent's questions,
 
 ---
 
+## Agent-Ready API
+
+Other agents can use Hestia too, not just people. Each stage of the pipeline is its own stateless JSON endpoint, so an agent can call the one tool it needs without running the whole flow. A **negotiator agent**, for example, can get verified comparables and a scam verdict before it makes an offer.
+
+| Tool | Endpoint | Input → Output | Typical caller |
+| --- | --- | --- | --- |
+| **House search** | `POST /api/search` | `{request}` (natural language) → ranked, scored listings | Relocation / concierge agents |
+| **Live search** | `POST /api/search/stream` | Same, streamed as NDJSON progress events | Agents with live UIs |
+| **Scam check** | `POST /api/decision/evaluate` | `{properties, cohort?}` → verdict, risk %, reason | Negotiator / due-diligence agents |
+| **Contact extraction** | `POST /api/outreach/extract` | listings → landlord phones & emails | CRM / lead agents |
+| **Draft outreach** | `POST /api/outreach/preview` | listings + context → composed messages (dry run) | Negotiator agents |
+| **Send outreach** | `POST /api/outreach/send` | approved listings → email / SMS sent | Booking agents |
+| **Book a viewing** | `POST /api/outreach/stream` | one listing + iCal URL → free slots, draft, send | Scheduling agents |
+
+- **Discoverable:** the OpenAPI schema at `/openapi.json` (interactive docs at `/docs`) can be loaded directly as tool definitions, or wrapped as an MCP server.
+- **Composable:** a typical negotiator chain is `search` → `decision/evaluate` → `outreach/preview` → `outreach/send`.
+- **Safe by default:** `preview` never sends anything, and listings flagged as possible scams stay draft-only.
+
 ---
 
 ## Pipeline
