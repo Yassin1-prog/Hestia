@@ -43,6 +43,7 @@ const PANGRATI: DemoSet = {
         "Third-floor corner unit with a deep balcony for your labrador, a spare bedroom for the " +
         "home office and a 6-minute walk to the Evangelismos metro.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 4,
     },
     {
       url: "https://www.spitogatos.gr/enoikiaseis-katoikies/mets?demo=2",
@@ -64,6 +65,7 @@ const PANGRATI: DemoSet = {
         "Floor-to-ceiling windows make it the brightest option, and the open-plan living room " +
         "fits a desk setup. Pets are negotiable rather than confirmed.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 6,
     },
     {
       url: "https://www.spitogatos.gr/enoikiaseis-katoikies/pagkrati?demo=3",
@@ -82,6 +84,7 @@ const PANGRATI: DemoSet = {
         "Shared rooftop terrace is ideal for a dog and the mezzanine doubles as an office, but " +
         "55 m² is tight for two rooms of use.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 9,
     },
   ],
 };
@@ -112,6 +115,7 @@ const PENTHOUSE: DemoSet = {
         "Private wraparound terrace with Lycabettus views, explicit pet approval and a 3-minute " +
         "walk to Evangelismos metro.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 3,
     },
     {
       url: "https://www.spitogatos.gr/enoikiaseis-katoikies/koukaki?demo=5",
@@ -129,6 +133,7 @@ const PENTHOUSE: DemoSet = {
       score_reason:
         "Unbeatable view and a quiet pedestrian street, but the pet policy still needs confirmation.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 7,
     },
     {
       url: "https://www.spitogatos.gr/enoikiaseis-katoikies/exarcheia?demo=6",
@@ -147,6 +152,7 @@ const PENTHOUSE: DemoSet = {
         "Best value per square meter with a dog park two blocks away; the neighborhood is livelier " +
         "than you might want at night.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 5,
     },
   ],
 };
@@ -177,6 +183,7 @@ const STUDENT: DemoSet = {
         "8-minute walk to the NTUA gate with utilities and fiber included, so the real monthly " +
         "cost is the lowest of all options.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 8,
     },
     {
       url: "https://www.spitogatos.gr/enoikiaseis-katoikies/goudi?demo=8",
@@ -194,6 +201,7 @@ const STUDENT: DemoSet = {
       score_reason:
         "A real separate bedroom for the price of a studio, 12 minutes to campus on the 230 bus.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 4,
     },
     {
       url: "https://www.spitogatos.gr/enoikiaseis-katoikies/ano-ilisia?demo=9",
@@ -211,6 +219,7 @@ const STUDENT: DemoSet = {
       score_reason:
         "Cheapest safe option and a 15-minute walk to campus, at the cost of sharing a kitchen.",
       scam_verdict: "SAFE",
+      scam_risk_pct: 6,
     },
   ],
 };

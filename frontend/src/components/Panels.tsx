@@ -9,13 +9,14 @@ import {
   Mail,
   RotateCw,
   Send,
+  ShieldAlert,
   Trash2,
   UserRound,
 } from "lucide-react";
 
 import { EmptyState } from "@/components/Drawer";
 import { ListingPhoto } from "@/components/ListingPhoto";
-import { formatPrice, propertyLocation, propertyTitle, scoreLabel } from "@/lib/format";
+import { formatPrice, propertyLocation, propertyTitle, scamLabel, scoreLabel } from "@/lib/format";
 import { outcomeText } from "@/components/OutreachWorkspace";
 import type { OutreachRun, Profile, Property, Viewing } from "@/lib/types";
 
@@ -159,12 +160,18 @@ export function FavoritesPanel({
     <ul className="mini-list">
       {favorites.map((p) => {
         const approved = approvedUrls.has(p.url);
+        const scamLocked = p.scam_verdict === "POSSIBLY_SCAM";
         return (
           <li key={p.url} className="mini">
             <div className="mini-row">
               <MiniProperty property={p} />
               <span className="mini-score">{scoreLabel(p.agentic_score)}</span>
             </div>
+            {scamLocked && (
+              <p className="mini-scam">
+                <ShieldAlert size={12} strokeWidth={2} /> Oumi Iris · {scamLabel(p)}
+              </p>
+            )}
             {p.score_reason && <p className="mini-reason">{p.score_reason}</p>}
             <div className="mini-actions">
               <button
@@ -174,9 +181,15 @@ export function FavoritesPanel({
                 disabled={approved}
               >
                 {approved ? (
-                  <>
-                    <Check size={13} strokeWidth={2} /> Agent Contacting
-                  </>
+                  scamLocked ? (
+                    <>
+                      <ShieldAlert size={13} strokeWidth={2} /> Drafted · Not Sent
+                    </>
+                  ) : (
+                    <>
+                      <Check size={13} strokeWidth={2} /> Agent Contacting
+                    </>
+                  )
                 ) : (
                   <>
                     <Send size={13} strokeWidth={1.75} /> Ask Agent to Contact

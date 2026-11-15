@@ -25,6 +25,26 @@ export function propertyFacts(p: Property): string[] {
   return facts;
 }
 
+/** Oumi Iris badge text: "Safe · 7% risk" or "Possible scam · 96% risk". */
+export function scamLabel(p: Property): string {
+  const verdict = p.scam_verdict === "POSSIBLY_SCAM" ? "Possible scam" : "Safe";
+  return p.scam_risk_pct != null ? `${verdict} · ${p.scam_risk_pct}% risk` : verdict;
+}
+
+/** Plain-English scam warning shown on flagged cards, the details modal, and the outreach brief. */
+export function scamWarningText(p: Property): string {
+  const reason = (p.scam_reason?.trim() || "This listing shows rental-scam patterns").replace(
+    /\.+$/,
+    "",
+  );
+  return `${reason}. The agent will draft the e-mail for review but will not send it.`;
+}
+
+/** True when an outreach outcome was blocked by the Oumi Iris scam lock rather than a server dry run. */
+export function isScamLockedOutcome(outcome?: { detail?: string | null }): boolean {
+  return Boolean(outcome?.detail && /oumi iris|possible scam/i.test(outcome.detail));
+}
+
 /** Backend scores are 1-10 (ints); demo data may use decimals. */
 export function scoreLabel(score: number): string {
   const clamped = Math.max(0, Math.min(10, score));

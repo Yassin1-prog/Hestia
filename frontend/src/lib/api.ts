@@ -27,6 +27,14 @@ function isProperty(value: unknown): value is Property {
 }
 
 function normalizeProperty(p: Property): Property {
+  const scam_verdict =
+    p.scam_verdict === "SAFE" || p.scam_verdict === "POSSIBLY_SCAM" ? p.scam_verdict : undefined;
+  const scam_risk_pct =
+    p.scam_risk_pct != null && Number.isFinite(Number(p.scam_risk_pct))
+      ? Math.max(0, Math.min(100, Math.round(Number(p.scam_risk_pct))))
+      : undefined;
+  const scam_reason = typeof p.scam_reason === "string" ? p.scam_reason.trim() || null : null;
+
   return {
     ...p,
     features: Array.isArray(p.features) ? p.features : [],
@@ -41,6 +49,9 @@ function normalizeProperty(p: Property): Property {
       : [],
     agentic_score: Number(p.agentic_score) || 0,
     score_reason: p.score_reason || "",
+    scam_verdict,
+    scam_risk_pct,
+    scam_reason,
   };
 }
 

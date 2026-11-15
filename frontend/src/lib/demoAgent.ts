@@ -156,7 +156,8 @@ export function demoSearchEvents(result: SearchResult): AgentEvent[] {
     const risk = p.scam_risk_pct ?? (risky ? 72 : 4 + i * 3);
     s.log(
       "scam",
-      `Listing ${i + 1}: ${risky ? "possible scam" : "safe"} (risk ${risk}%)`,
+      `Listing ${i + 1}: ${risky ? "possible scam" : "safe"} (risk ${risk}%)` +
+        (p.scam_reason ? `: ${p.scam_reason}` : ""),
       risky ? "warn" : "ok",
     ).agent(
       "scam",
@@ -269,22 +270,30 @@ export function demoOutreachEvents(
   const questions = approved ? approved.length : p.missing_info.length || 2;
   const ranker = new Set(p.missing_info.map((q) => q.trim().toLowerCase()));
   const yours = (approved ?? []).filter((q) => !ranker.has(q.trim().toLowerCase()));
-  s.start("brief", "Reading the listing", "Collecting what the landlord needs to know")
-    .log(
+  const scamLocked = p.scam_verdict === "POSSIBLY_SCAM";
+  s.start("brief", "Reading the listing", "Collecting what the landlord needs to know").log(
+    "brief",
+    `Listing: ${[p.location || propertyTitle(p), p.sqm ? `${p.sqm} m²` : "", formatPrice(p.price)].filter(Boolean).join(" · ")}`,
+  );
+  if (scamLocked) {
+    s.log(
       "brief",
-      `Listing: ${[p.location || propertyTitle(p), p.sqm ? `${p.sqm} m²` : "", formatPrice(p.price)].filter(Boolean).join(" · ")}`,
-    )
-    .log("brief", `Writing on behalf of ${profile.name} <${profile.email}>`)
-    .log(
-      "brief",
-      approved && !approved.length
-        ? "You cleared the questions: asking only for a viewing"
-        : approved
-          ? `${plural(questions, "question")} approved by you` +
-            (yours.length ? `, ${yours.length} of them your own` : "")
-          : `${plural(questions, "open question")} from the ranker`,
-      approved ? "ok" : "info",
+      "Oumi Iris flagged this listing as a possible scam" +
+        (p.scam_risk_pct != null ? ` (${p.scam_risk_pct}% risk)` : "") +
+        ": the e-mail will be drafted but not sent",
+      "warn",
     );
+  }
+  s.log("brief", `Writing on behalf of ${profile.name} <${profile.email}>`).log(
+    "brief",
+    approved && !approved.length
+      ? "You cleared the questions: asking only for a viewing"
+      : approved
+        ? `${plural(questions, "question")} approved by you` +
+          (yours.length ? `, ${yours.length} of them your own` : "")
+        : `${plural(questions, "open question")} from the ranker`,
+    approved ? "ok" : "info",
+  );
   yours.slice(0, 3).forEach((q) => s.log("brief", `Your question: ${q}`));
   s.done("brief", "Listing and profile loaded");
 
@@ -338,12 +347,22 @@ export function demoOutreachEvents(
   s.events.push({ type: "draft", channel: "email", to: p.agent_email, ...email });
   s.done("draft", "E-mail drafted");
 
+  const lockDetail = scamLocked
+    ? "Not sent: Oumi Iris flagged this listing as a possible scam"
+    : undefined;
   s.start("send", "Sending the e-mail", "Composed for review only (dry run)")
-    .log("send", `E-mail to ${p.agent_email} composed but not sent (demo listing)`, "warn")
-    .done("send", "Composed, not sent (demo listing)");
+    .log(
+      "send",
+      `E-mail to ${p.agent_email} composed but not sent (${scamLocked ? "Oumi Iris scam lock" : "demo listing"})`,
+      "warn",
+    )
+    .done(
+      "send",
+      scamLocked ? "Composed, not sent (Oumi Iris scam lock)" : "Composed, not sent (demo listing)",
+    );
   s.events.push({
     type: "outcome",
-    outcome: { state: "demo", to: p.agent_email, windows: slots, ...email },
+    outcome: { state: "demo", to: p.agent_email, detail: lockDetail, windows: slots, ...email },
   });
   return s.events;
 }

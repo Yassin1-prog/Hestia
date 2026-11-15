@@ -27,6 +27,7 @@ import {
   propertyFacts,
   propertyLocation,
   propertyTitle,
+  scamWarningText,
   scoreTier,
 } from "@/lib/format";
 import { useCountUp } from "@/lib/motion";
@@ -260,9 +261,15 @@ export function PropertyDetails({
                       <LoaderCircle size={15} strokeWidth={2} className="spin" /> Agent at work
                     </>
                   ) : approved ? (
-                    <>
-                      <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
-                    </>
+                    p.scam_verdict === "POSSIBLY_SCAM" ? (
+                      <>
+                        <ShieldAlert size={15} strokeWidth={2} /> Drafted · Not Sent
+                      </>
+                    ) : (
+                      <>
+                        <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                      </>
+                    )
                   ) : (
                     <>
                       <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact
@@ -283,6 +290,12 @@ function DetailsContent({ p }: { p: Property }) {
   const perSqm = p.price && p.sqm ? Math.round((p.price / p.sqm) * 10) / 10 : null;
   return (
     <>
+      {p.scam_verdict === "POSSIBLY_SCAM" && (
+        <p className="scam-warning modal-scam-warning" role="note">
+          <ShieldAlert size={14} strokeWidth={2} />
+          <span>{scamWarningText(p)}</span>
+        </p>
+      )}
       {p.score_reason && (
         <section className="why modal-why">
           <p className="why-text">{p.score_reason}</p>
@@ -357,25 +370,30 @@ function DetailsContent({ p }: { p: Property }) {
             <dt>Floor</dt>
             <dd>{p.floor || "n/a"}</dd>
           </div>
-          <div>
-            <dt>Scam check</dt>
+          <div className="fact-wide">
+            <dt>Scam check (Oumi Iris)</dt>
             <dd
               className={
                 p.scam_verdict === "POSSIBLY_SCAM" ? "fact-risk" : p.scam_verdict ? "fact-safe" : ""
               }
             >
-              {p.scam_verdict === "POSSIBLY_SCAM" ? (
-                <>
-                  <ShieldAlert size={13} strokeWidth={2} /> Possible scam
-                </>
-              ) : p.scam_verdict === "SAFE" ? (
-                <>
-                  <ShieldCheck size={13} strokeWidth={2} /> Passed
-                </>
-              ) : (
-                "Not run"
+              <span className="fact-status">
+                {p.scam_verdict === "POSSIBLY_SCAM" ? (
+                  <>
+                    <ShieldAlert size={13} strokeWidth={2} /> Possible scam
+                  </>
+                ) : p.scam_verdict === "SAFE" ? (
+                  <>
+                    <ShieldCheck size={13} strokeWidth={2} /> Passed
+                  </>
+                ) : (
+                  "Not run"
+                )}
+                {p.scam_risk_pct != null && ` · ${p.scam_risk_pct}% risk`}
+              </span>
+              {p.scam_verdict === "POSSIBLY_SCAM" && p.scam_reason && (
+                <span className="fact-note">{p.scam_reason}</span>
               )}
-              {p.scam_risk_pct != null && ` · ${p.scam_risk_pct}% risk`}
             </dd>
           </div>
         </dl>

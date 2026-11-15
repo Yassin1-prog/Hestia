@@ -20,6 +20,8 @@ import {
   propertyFacts,
   propertyLocation,
   propertyTitle,
+  scamLabel,
+  scamWarningText,
   scoreTier,
 } from "@/lib/format";
 import { ContactBrief } from "@/components/ContactBrief";
@@ -110,14 +112,17 @@ export function PropertyCard({
 
       {(p.features.length > 0 || p.scam_verdict) && (
         <ul className="card-tags">
-          {p.scam_verdict === "SAFE" && (
-            <li className="tag tag-safe">
-              <ShieldCheck size={12} strokeWidth={2} /> Scam check passed
-            </li>
-          )}
-          {p.scam_verdict === "POSSIBLY_SCAM" && (
-            <li className="tag tag-risk">
-              <ShieldAlert size={12} strokeWidth={2} /> Possible scam
+          {p.scam_verdict && (
+            <li
+              className={`tag ${p.scam_verdict === "SAFE" ? "tag-safe" : "tag-risk"}`}
+              title="Checked by the Oumi Iris decision model"
+            >
+              {p.scam_verdict === "SAFE" ? (
+                <ShieldCheck size={12} strokeWidth={2} />
+              ) : (
+                <ShieldAlert size={12} strokeWidth={2} />
+              )}
+              Oumi Iris · {scamLabel(p)}
             </li>
           )}
           {p.features.slice(0, 5).map((f) => (
@@ -126,6 +131,13 @@ export function PropertyCard({
             </li>
           ))}
         </ul>
+      )}
+
+      {p.scam_verdict === "POSSIBLY_SCAM" && (
+        <p className="scam-warning" role="note">
+          <ShieldAlert size={14} strokeWidth={2} />
+          <span>{scamWarningText(p)}</span>
+        </p>
       )}
 
       {p.score_reason && (
@@ -206,9 +218,15 @@ export function PropertyCard({
                   <LoaderCircle size={15} strokeWidth={2} className="spin" /> Agent at work
                 </>
               ) : approved ? (
-                <>
-                  <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
-                </>
+                p.scam_verdict === "POSSIBLY_SCAM" ? (
+                  <>
+                    <ShieldAlert size={15} strokeWidth={2} /> Drafted · Not Sent
+                  </>
+                ) : (
+                  <>
+                    <Check size={15} strokeWidth={2} className="check-draw" /> Agent Contacted
+                  </>
+                )
               ) : (
                 <>
                   <Send size={15} strokeWidth={1.75} /> Ask Agent to Contact

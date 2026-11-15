@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, MessageCircleQuestion, Plus, Send, X } from "lucide-react";
+import { Check, MessageCircleQuestion, Plus, Send, ShieldAlert, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
+import { scamWarningText } from "@/lib/format";
 import type { Property } from "@/lib/types";
 
 const DEFAULT_QUESTIONS = [
@@ -62,6 +63,7 @@ export function ContactBrief({ property, initial, onSend, onCancel }: ContactBri
 
   const selected = questions.filter((q) => q.checked);
   const full = selected.length >= MAX_QUESTIONS;
+  const scamLocked = property.scam_verdict === "POSSIBLY_SCAM";
   const suggestions = useMemo(
     () => SUGGESTIONS.filter((s) => !questions.some((q) => norm(q.text) === norm(s))).slice(0, 4),
     [questions],
@@ -92,6 +94,13 @@ export function ContactBrief({ property, initial, onSend, onCancel }: ContactBri
           </p>
         </div>
       </header>
+
+      {scamLocked && (
+        <p className="scam-warning" role="note">
+          <ShieldAlert size={14} strokeWidth={2} />
+          <span>{scamWarningText(property)}</span>
+        </p>
+      )}
 
       <ul className="brief-list">
         {questions.map((q, i) => (
@@ -177,7 +186,15 @@ export function ContactBrief({ property, initial, onSend, onCancel }: ContactBri
             className="approve-btn"
             onClick={() => onSend(selected.map((q) => q.text))}
           >
-            <Send size={14} strokeWidth={1.75} /> Send agent
+            {scamLocked ? (
+              <>
+                <ShieldAlert size={14} strokeWidth={1.75} /> Draft e-mail only
+              </>
+            ) : (
+              <>
+                <Send size={14} strokeWidth={1.75} /> Send agent
+              </>
+            )}
           </button>
         </div>
       </footer>

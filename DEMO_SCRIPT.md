@@ -20,12 +20,12 @@
 ---
 
 ## `1:15 – 1:55` | Stage 2: Feature Ranker & Post-Ranker Oumi `Iris` Scam Decision Model (40 sec)
-- **[On Screen]:** Show the Feature Ranker scores alongside the prominent **Oumi `Iris` Scam Decision Gate** intercepting what would have been the `#1` match as **`POSSIBLY_SCAM`**, complete with 4 forensic probability bars and the verified `SAFE` shortlist.
+- **[On Screen]:** Show the Feature Ranker scores alongside the **Oumi `Iris`** scam-check badges (`Safe` vs. `Possible scam` with risk % and a plain-English warning), sinking a flagged listing below the verified `SAFE` shortlist and locking outreach to draft-only.
 > *"Next, our Feature Ranker scores all deduplicated listings against the user's constraints, detects what details are missing—like pet policies or building charges—and narrows the pool to the Top-K finalists.*  
 >
 > *But here is the trap with real estate portals: **scammers design bait listings to rank #1** by stuffing luxury keywords at half the market price. So before the user ever sees or contacts a landlord, our Top-K ranked results pass in parallel through **Oumi's `Iris` Decision Model**.*  
 >
-> *`Iris` scores every candidate across price-per-square-meter anomalies, stolen photos, metadata contradictions, and advance-fee red flags, outputting a crisp **`SAFE`** or **`POSSIBLY_SCAM`** verdict with granular forensic probabilities. Look at the screen: the apartment that ranked #1 on raw features was flagged at over 95% scam risk and quarantined immediately—promoting only truly verified `SAFE` homes for the user to approve."*
+> *`Iris` scores every candidate across price-per-square-meter anomalies, stolen photos, metadata contradictions, and advance-fee red flags, outputting a crisp **`SAFE`** or **`POSSIBLY_SCAM`** verdict with a risk score and plain-English reason. Look at the screen: the apartment that ranked #1 on raw features was flagged at high scam risk, pushed below the verified `SAFE` homes, and locked to draft-only outreach—promoting only verified `SAFE` homes for contact."*
 
 ---
 

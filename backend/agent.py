@@ -316,11 +316,12 @@ def _scam_gate(
 ) -> dict[str, dict]:
     """Runs the Oumi Iris decision model if configured. Returns {url: verdict fields}."""
     progress.start("scam", STEP_TITLES["scam"], "Checking the shortlist for rental-scam patterns")
-    if not (os.getenv("OUMI_API_KEY", "").strip() and os.getenv("OUMI_PROJECT_ID", "").strip()):
+    from backend.decision import evaluate_ranked_properties_sync, oumi_configured
+
+    if not oumi_configured():
         progress.log("scam", "Oumi Iris is not configured (OUMI_API_KEY / OUMI_PROJECT_ID)", "warn")
         progress.done("scam", "Skipped: decision model not configured", status="skipped")
         return {}
-    from backend.decision import evaluate_ranked_properties_sync
 
     progress.log("scam", f"Comparing price per m² against {len(all_houses)} listings in the area")
     progress.log("scam", f"Sending {len(final)} listings to Oumi Iris")
@@ -339,14 +340,19 @@ def _scam_gate(
         safe = d.verdict == "SAFE"
         progress.log(
             "scam",
-            f"Listing {d.initial_rank}: {'safe' if safe else 'possible scam'} (risk {d.scam_risk_pct}%)",
+            f"Listing {d.initial_rank}: {'safe' if safe else 'possible scam'} (risk {d.scam_risk_pct}%)"
+            + (f": {d.scam_reason}" if d.scam_reason else ""),
             "ok" if safe else "warn",
         )
         progress.agent(
             "scam", f"iris-{d.initial_rank}", f"Listing {d.initial_rank}",
             "done" if safe else "failed", f"{'Safe' if safe else 'Possible scam'} · risk {d.scam_risk_pct}%",
         )
-        verdicts[d.url] = {"scam_verdict": d.verdict, "scam_risk_pct": d.scam_risk_pct}
+        verdicts[d.url] = {
+            "scam_verdict": d.verdict,
+            "scam_risk_pct": d.scam_risk_pct,
+            "scam_reason": d.scam_reason,
+        }
     flagged = len(decisions.possibly_scam_properties)
     progress.done(
         "scam",

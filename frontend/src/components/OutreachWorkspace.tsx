@@ -4,7 +4,7 @@ import { Bot, CalendarCheck, Check, ChevronDown, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AgentSteps } from "@/components/AgentSteps";
-import { formatDuration } from "@/lib/format";
+import { formatDuration, isScamLockedOutcome } from "@/lib/format";
 import type { EmailDraft, EmailOutcome, OutreachRun } from "@/lib/types";
 
 /** The body types itself out in about this long, whatever its length. */
@@ -55,15 +55,20 @@ export function EmailDraftView({ draft, animate }: { draft: EmailDraft; animate:
 }
 
 export function outcomeText(outcome: EmailOutcome | undefined): { text: string; tone: string } {
+  const scamLocked = isScamLockedOutcome(outcome);
   switch (outcome?.state) {
     case "sending":
       return { text: "The agent is contacting the landlord", tone: "pending" };
     case "sent":
       return { text: `E-mail sent${outcome.to ? ` to ${outcome.to}` : ""}`, tone: "ok" };
     case "dry_run":
-      return { text: "E-mail composed, not sent (server dry run)", tone: "muted" };
+      return scamLocked
+        ? { text: "E-mail drafted, not sent (Oumi Iris scam lock)", tone: "warn" }
+        : { text: "E-mail composed, not sent (server dry run)", tone: "muted" };
     case "demo":
-      return { text: "Demo listing: e-mail composed, not sent", tone: "muted" };
+      return scamLocked
+        ? { text: "Demo listing: e-mail drafted, not sent (Oumi Iris scam lock)", tone: "warn" }
+        : { text: "Demo listing: e-mail composed, not sent", tone: "muted" };
     case "no_contact":
       return { text: "No e-mail address on the listing: use the listing page", tone: "warn" };
     case "failed":

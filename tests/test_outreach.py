@@ -321,6 +321,37 @@ def test_missing_credentials_fail_with_actionable_message():
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
+def test_listing_flagged_by_oumi_iris_is_never_contacted():
+    flagged = {**LISTING_MOBILE_AND_EMAIL, "scam_verdict": "POSSIBLY_SCAM"}
+    safe = {**LISTING_MOBILE_AND_EMAIL, "url": "https://www.spitogatos.gr/aggelia/safe", "scam_verdict": "SAFE"}
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.host)
+        if request.url.host == "api.twilio.com":
+            return httpx.Response(201, json={"sid": "SM1", "status": "queued"})
+        return httpx.Response(200, json={"id": "e1"})
+
+    batch = _run([flagged, safe], OutreachSettings(dry_run=False), handler)
+    locked, contacted = batch.results
+    assert batch.dry_run is False
+    assert (batch.contacted, batch.failed, batch.no_contact) == (1, 0, 0)
+    assert locked.status == "dry_run"
+    assert {a.status for a in locked.attempts} == {"dry_run"}
+    assert all("Oumi Iris" in a.detail for a in locked.attempts)
+    assert locked.attempts[1].body  # The message is still composed for review.
+    assert contacted.status == "contacted"
+    assert sorted(calls) == ["api.resend.com", "api.twilio.com"]  # Only the SAFE listing.
+
+
+def test_flagged_listing_without_contact_still_counts_as_no_contact():
+    flagged_no_contact = {**LISTING_NO_CONTACT, "scam_verdict": "POSSIBLY_SCAM"}
+    batch = _run([flagged_no_contact], OutreachSettings(dry_run=False), _no_http)
+    assert batch.dry_run is False
+    assert batch.results[0].status == "no_contact"
+    assert (batch.contacted, batch.failed, batch.no_contact) == (0, 0, 1)
+
+
 def test_api_health_and_preview(monkeypatch):
     monkeypatch.setenv("OUTREACH_DRY_RUN", "false")  # Preview must still never send.
     client = TestClient(app)

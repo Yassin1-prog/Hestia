@@ -163,6 +163,28 @@ def test_stream_outreach_demo_listing_is_never_sent():
     assert events[-1]["status"] == "dry_run" and events[-1]["dry_run"] is True
 
 
+def test_stream_outreach_never_sends_to_listing_flagged_by_oumi_iris():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(f"A flagged listing must not be contacted: {request.url}")
+
+    flagged = {**LISTING, "scam_verdict": "POSSIBLY_SCAM", "scam_risk_pct": 93}
+    events = collect(
+        stream_listing_outreach(
+            flagged,
+            CTX,
+            settings=OutreachSettings(dry_run=False, channels=["email"]),
+            email=ResendEmailSender(api_key="re_test", from_email="agent@example.org"),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            now=NOW,
+        )
+    )
+    logs = [e["text"] for e in events if e["type"] == "log"]
+    assert any("Oumi Iris flagged this listing as a possible scam (93% risk)" in t for t in logs)
+    assert any("Oumi Iris scam lock" in t for t in logs)
+    assert any(e["type"] == "draft" for e in events)  # The user still sees what would have been sent.
+    assert events[-1]["status"] == "dry_run" and events[-1]["dry_run"] is True
+
+
 def test_stream_outreach_without_email_reports_no_contact():
     events = collect(
         stream_listing_outreach(
@@ -189,6 +211,24 @@ def test_api_outreach_stream_is_ndjson(monkeypatch):
     assert res.status_code == 200 and res.headers["content-type"].startswith("application/x-ndjson")
     lines = [json.loads(line) for line in res.text.splitlines() if line]
     assert lines[0]["type"] == "step" and lines[-1]["type"] == "result"
+
+
+def test_api_outreach_stream_locks_flagged_listing_even_when_live(monkeypatch):
+    monkeypatch.setenv("OUTREACH_DRY_RUN", "false")
+    monkeypatch.setenv("OUTREACH_CHANNELS", "email")
+    monkeypatch.setenv("RESEND_API_KEY", "re_test")
+    flagged = {**LISTING, "scam_verdict": "POSSIBLY_SCAM", "scam_risk_pct": 91}
+    with TestClient(app) as client:
+        res = client.post(
+            "/api/outreach/stream",
+            json={"user": {"name": "Nikos", "email": "nikos@example.org"}, "properties": [flagged], "dry_run": False},
+        )
+    assert res.status_code == 200
+    lines = [json.loads(line) for line in res.text.splitlines() if line]
+    assert lines[-1]["type"] == "result"
+    assert lines[-1]["status"] == "dry_run"
+    assert lines[-1]["dry_run"] is True
+    assert "Oumi Iris" in lines[-1]["attempts"][0]["detail"]
 
 
 def test_api_search_stream_relays_progress_and_errors(monkeypatch):

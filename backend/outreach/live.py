@@ -23,10 +23,12 @@ from backend.outreach.channels import ResendEmailSender, TwilioSmsSender
 from backend.outreach.contacts import ContactEmail, extract_contacts, to_dict
 from backend.outreach.messages import OutreachContext, _questions, compose_email, greeting_name
 from backend.outreach.service import (
+    SCAM_LOCK_DETAIL,
     Channel,
     ListingOutreachAgent,
     OutreachSettings,
     _overall_status,
+    flagged_as_scam,
 )
 
 Event = dict[str, Any]
@@ -89,8 +91,9 @@ async def stream_listing_outreach(
 ) -> AsyncIterator[Event]:
     """Contacts one landlord, yielding progress events. `demo` listings are never sent."""
     listing = to_dict(listing)
+    scam_locked = flagged_as_scam(listing)
     settings = (settings or OutreachSettings.from_env()).model_copy()
-    settings.dry_run = settings.dry_run or force_dry_run or demo
+    settings.dry_run = settings.dry_run or force_dry_run or demo or scam_locked
     chosen = [c for c in (channels or settings.channels) if c in settings.channels]
     owns_client = client is None
     http = client or httpx.AsyncClient(timeout=20.0)
@@ -99,6 +102,15 @@ async def stream_listing_outreach(
         # 1. Brief -------------------------------------------------------------------------
         yield _step("brief", "Reading the listing", "Collecting what the landlord needs to know")
         yield _log("brief", f"Listing: {_listing_line(listing)}")
+        if scam_locked:
+            risk = listing.get("scam_risk_pct")
+            yield _log(
+                "brief",
+                "Oumi Iris flagged this listing as a possible scam"
+                + (f" ({risk}% risk)" if risk is not None else "")
+                + ": the e-mail will be drafted but not sent",
+                "warn",
+            )
         user = context.user
         yield _log("brief", f"Writing on behalf of {user.name}" + (f" <{user.email}>" if user.email else ""))
         questions = _questions(listing, context)
@@ -216,7 +228,9 @@ async def stream_listing_outreach(
             yield _step(
                 "send",
                 "Sending the e-mail",
-                "Composed for review only (dry run)" if settings.dry_run else "Handing the e-mail to Resend",
+                "Held back: Oumi Iris flagged this listing"
+                if scam_locked
+                else ("Composed for review only (dry run)" if settings.dry_run else "Handing the e-mail to Resend"),
             )
             attempts = await agent.send(http, contacts)
             for a in attempts:
@@ -226,7 +240,8 @@ async def stream_listing_outreach(
                     provider = f" (id {a.provider_id})" if a.provider_id else ""
                     yield _log("send", f"{label} delivered to {who}{provider}", "ok")
                 elif a.status == "dry_run":
-                    yield _log("send", f"{label} to {who} composed but not sent (dry run)", "warn")
+                    reason = "Oumi Iris scam lock" if a.detail == SCAM_LOCK_DETAIL else "dry run"
+                    yield _log("send", f"{label} to {who} composed but not sent ({reason})", "warn")
                 elif a.status == "skipped":
                     yield _log("send", f"{label} skipped: {a.detail}", "warn")
                 else:
@@ -236,7 +251,9 @@ async def stream_listing_outreach(
                 "send",
                 {
                     "contacted": "E-mail sent to the landlord",
-                    "dry_run": "Composed, not sent (dry run)",
+                    "dry_run": "Composed, not sent (Oumi Iris scam lock)"
+                    if scam_locked
+                    else "Composed, not sent (dry run)",
                     "no_contact": "Nothing to send",
                     "failed": "Sending failed",
                 }[status],

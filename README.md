@@ -12,7 +12,7 @@ A lightweight **FastAPI (Python)** + **Next.js (React)** starter template built 
 Gen-AI-Summit/
 ├── .github/workflows/ci.yml # GitHub Actions CI (Ruff, Pytest, Prettier, Typecheck, Next build)
 ├── backend/
-│   ├── main.py              # FastAPI endpoints (/api/health, /api/search, /api/outreach/*)
+│   ├── main.py              # FastAPI endpoints (/api/health, /api/search, /api/search/stream, /api/decision/evaluate, /api/outreach/*, /api/outreach/stream)
 │   ├── agent.py             # Search & ranking agent (Gemini + Firecrawl) → PropertyDetails
 │   ├── decision.py          # Oumi Iris scam decision gate (see OUMI_IRIS_INTEGRATION.md)
 │   └── outreach/            # Contact extraction + Twilio SMS / Resend e-mail (see OUTREACH.md)

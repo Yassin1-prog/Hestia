@@ -222,12 +222,20 @@ def check_firecrawl() -> None:
         report("FAIL", "FIRECRAWL_API_KEY", f"HTTP {resp.status_code}: {resp.text[:200]}")
 
 
+def check_oumi() -> None:
+    from backend.decision import oumi_configured, probe_oumi
+
+    if not oumi_configured():
+        report("WARN", "OUMI_API_KEY / OUMI_PROJECT_ID", "not set: scam decision gate unavailable")
+        return
+    ok, detail = probe_oumi()  # One tiny Iris call: validates key, project and endpoint.
+    report("OK" if ok else "FAIL", "OUMI_API_KEY / OUMI_PROJECT_ID", detail)
+
+
 def check_agent_keys() -> None:
     check_gemini()
     check_firecrawl()
-    oumi = os.getenv("OUMI_API_KEY") and os.getenv("OUMI_PROJECT_ID")
-    report("OK" if oumi else "WARN", "OUMI_API_KEY / OUMI_PROJECT_ID",
-           "set" if oumi else "not set: scam decision gate unavailable")
+    check_oumi()
 
 
 def main() -> int:

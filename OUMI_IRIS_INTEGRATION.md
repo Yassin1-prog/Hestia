@@ -1,28 +1,29 @@
 # Oumi `Iris` Decision Model — Post-Ranker Integration Guide
 
 > **Purpose:** Concise reference for how **Oumi's `Iris` Decision Model** (`POST https://inference.oumi.ai/v1/systemone`) is integrated into our pipeline via [`backend/decision.py`](./backend/decision.py).  
-> **Scope:** `Iris` runs **after the Feature Ranker** on the ranked properties and classifies each as **`SAFE`** or **`POSSIBLY_SCAM`** with 4 parallel forensic probabilities for the frontend UI. It is completely location-agnostic and does **not** decide outreach channel strategies.
+> **Scope:** `Iris` runs **after the Feature Ranker and deep scrape** on the shortlisted properties and classifies each as **`SAFE`** or **`POSSIBLY_SCAM`**. Per-criterion `rubric_probabilities` are computed internally in `backend/decision.py`, while only the single strongest red flag at or above `0.50` (`SCAM_THRESHOLD`) is surfaced as plain-English `scam_reason` on `POSSIBLY_SCAM` listings. It is completely location-agnostic and does **not** decide outreach channel strategies.
 
 ---
 
 ## 1. Pipeline Position (Post-Ranker Decision Gate)
 
 ```text
-[1. Provider Search & Scrape]
+[1. Provider Search & Scrape (`backend/agent.py`)]
     Fetches all candidate listings on the search page (`all_houses`)
           │
           ▼
-[2. Feature Ranker (`backend/agent.py`)]
-    Scores candidates against user requirements and returns top ranked properties (`final_properties`)
+[2. Feature Ranker & Deep Scrape (`backend/agent.py`)]
+    Scores candidates against user requirements and deep-scrapes top listings (`final_properties`)
           │
           ▼
 [3. Oumi Iris Decision Model (`backend/decision.py`)]
-    • Computes dynamic cohort median €/m² from the scraped results (location-agnostic)
-    • Evaluates ranked properties in parallel via `POST https://inference.oumi.ai/v1/systemone`
-    • Outputs `SAFE` vs. `POSSIBLY_SCAM` + 4 rubric probabilities (`outputTokens: 0`)
+    • Computes dynamic cohort median €/m² from `all_houses` (location-agnostic)
+    • Evaluates shortlisted properties in parallel via `POST https://inference.oumi.ai/v1/systemone`
+    • Computes `SAFE` vs. `POSSIBLY_SCAM`, `scam_risk_pct`, and internal `rubric_probabilities`
+    • Surfaces the single strongest red flag >= 0.50 as plain-English `scam_reason` (only when `POSSIBLY_SCAM`)
           │
-          ├──► `safe_properties` (Re-indexed `verified_rank` #1, #2... ready for user approval & outreach)
-          └──► `possibly_scam_properties` (Shown in Frontend "Wow Factor" banner with forensic bars)
+          ├──► `safe_properties` (Kept at top of `results`; re-indexed `verified_rank` #1, #2... in `DecisionBatchResponse`)
+          └──► `possibly_scam_properties` (Sunk to the bottom of `results` with a card/modal warning and outreach dry-run lock)
 ```
 
 ---
@@ -34,12 +35,23 @@
 | **Endpoint** | `POST https://inference.oumi.ai/v1/systemone` |
 | **Headers** | `X-API-Key: $OUMI_API_KEY`, `Content-Type: application/json` |
 | **Model Identifier** | `projects/{OUMI_PROJECT_ID}/models/iris-latest` |
+| **Health Check** | `GET /api/health` reports `"oumi_configured": true \| false` via `oumi_configured()` |
+| **Standalone Endpoint** | `POST /api/decision/evaluate` runs `evaluate_ranked_properties()` without a full search |
 
-### `.env` Variables
+### `.env` Variables & Helpers
 ```dotenv
 OUMI_API_KEY=your_oumi_api_key
 OUMI_PROJECT_ID=your_oumi_project_id
 ```
+
+- `normalize_project_id(raw)` accepts `abc`, `projects/abc`, or `projects/abc/models/iris-latest` and normalizes to `abc`.
+- `oumi_configured()` checks that both `OUMI_API_KEY` and normalized `OUMI_PROJECT_ID` are non-empty.
+- `probe_oumi()` runs a tiny single-question (`is_rental`) check against `/v1/systemone` to verify the key, project ID, and endpoint:
+  ```powershell
+  uv run python -m backend.decision
+  # Also invoked automatically by:
+  uv run python -m backend.check_env
+  ```
 
 ---
 
@@ -124,34 +136,38 @@ For each ranked property, [`backend/decision.py`](./backend/decision.py) sends t
 
 ---
 
-## 4. How to Call `backend/decision.py`
+## 4. How to Call `backend/decision.py` & API
 
 ```python
-from backend.decision import evaluate_ranked_properties_sync
+from backend.decision import evaluate_ranked_properties_sync, oumi_configured
 
-# Pass `final_properties` (ranked list) and optionally `all_houses` (for cohort median €/m²)
-decision_batch = evaluate_ranked_properties_sync(
-    ranked_properties=final_properties,
-    all_properties=all_houses,
-)
+if oumi_configured():
+    # Pass `final_properties` (ranked list) and optionally `all_houses` (for cohort median €/m²)
+    decision_batch = evaluate_ranked_properties_sync(
+        ranked_properties=final_properties,
+        all_properties=all_houses,
+    )
 
-# 1. Verified SAFE listings (re-indexed verified_rank = 1, 2...)
-for item in decision_batch.safe_properties:
-    print(item.verified_rank, item.url, item.scam_risk_pct)
+    # 1. Verified SAFE listings (re-indexed verified_rank = 1, 2...)
+    for item in decision_batch.safe_properties:
+        print(item.verified_rank, item.url, item.scam_risk_pct)
 
-# 2. Flagged POSSIBLY_SCAM listings (with initial_rank and 4 rubric probabilities)
-for scam in decision_batch.possibly_scam_properties:
-    print(scam.initial_rank, scam.url, scam.scam_risk_pct, scam.rubric_probabilities)
+    # 2. Flagged POSSIBLY_SCAM listings (plain-English scam_reason; rubric_probabilities stay internal)
+    for scam in decision_batch.possibly_scam_properties:
+        print(scam.initial_rank, scam.url, scam.scam_risk_pct, scam.scam_reason, scam.rubric_probabilities)
 ```
+
+- **Standalone FastAPI endpoint (`POST /api/decision/evaluate`):** Accepts `{ "properties": [...], "cohort": [...] }` (where `cohort` is optional) and returns `[{ "url", "rank", "scam_verdict", "scam_risk_pct", "scam_reason" }]`. Returns `503` if `oumi_configured()` is `False` or `502` on upstream Iris errors.
 
 ---
 
-## 5. Frontend "Wow Factor" Display
+## 5. Implemented Frontend & Outreach Behavior
 
-In the frontend, use `DecisionBatchResponse` to highlight Oumi `Iris` in action:
-1. **Intercepted Top Match Callout (`intercepted_top_match == True`):**
-   Show when `initial_rank == 1` was intercepted as `POSSIBLY_SCAM` (e.g., `~~Raw Rank #1~~ → 🛡️ OUMI IRIS: POSSIBLY SCAM (95% Risk)`).
-2. **4 Forensic Probability Bars (`rubric_probabilities`):**
-   Render horizontal bars for `price_anomaly`, `advance_fee_lure`, `stolen_or_cloned_media`, and `metadata_inconsistency`.
-3. **Verified `SAFE` Badge:**
-   Display `✓ OUMI IRIS: SAFE` and `scam_risk_pct` on each card in `safe_properties`.
+`backend/agent.py` merges `scam_verdict`, `scam_risk_pct`, and `scam_reason` into each returned listing and sinks any `POSSIBLY_SCAM` listings to the bottom of `results`:
+
+1. **Card & Details Badges:**
+   Cards display `Oumi Iris · Safe · {scam_risk_pct}% risk` or `Oumi Iris · Possible scam · {scam_risk_pct}% risk` (when `scam_verdict` is present), and the collapsed `AgentFeed` summary reports either `Oumi Iris: all safe` or `Oumi Iris flagged N possible scam(s)`.
+2. **Plain-English Warning (`scam_reason`), Not 4 UI Bars:**
+   `rubric_probabilities` (`price_anomaly`, `advance_fee_lure`, `stolen_or_cloned_media`, `metadata_inconsistency`) remain internal to `backend/decision.py`. Only the single strongest red flag `>= 0.50` is returned as plain-English `scam_reason` (only on `POSSIBLY_SCAM` listings) and shown in a warning notice on the property card, details modal (alongside the `Scam check (Oumi Iris)` key fact), and outreach question briefing.
+3. **Outreach Dry-Run Lock:**
+   Both `backend/outreach/service.py` and `backend/outreach/live.py` automatically force `dry_run=True` for any listing with `scam_verdict == "POSSIBLY_SCAM"` (even if `OUTREACH_DRY_RUN=false`). The UI reflects this with **Draft e-mail only** in the question briefing and **Drafted · Not Sent** once completed.

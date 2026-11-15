@@ -19,7 +19,7 @@ import { FavoritesPanel, SettingsPanel, ViewingsPanel } from "@/components/Panel
 import { PropertyCard } from "@/components/PropertyCard";
 import { PropertyDetails } from "@/components/PropertyDetails";
 import { TopNav, type PanelKey } from "@/components/TopNav";
-import { formatDuration, propertyTitle } from "@/lib/format";
+import { formatDuration, isScamLockedOutcome, propertyTitle } from "@/lib/format";
 import { usePersistentState } from "@/lib/storage";
 import { useOutreachAgents } from "@/lib/useOutreachAgents";
 import { useSearchAgent } from "@/lib/useSearchAgent";
@@ -84,12 +84,17 @@ export default function HomePage() {
         v.map((x) => (x.property.url === property.url ? { ...x, email: outcome } : x)),
       );
       const title = propertyTitle(property);
+      const scamLocked = property.scam_verdict === "POSSIBLY_SCAM" || isScamLockedOutcome(outcome);
       notify(
         {
           sending: "",
           sent: `Agent e-mailed the landlord about ${title}${slotsPhrase(outcome)}.`,
-          dry_run: `E-mail for ${title} composed but not sent (server dry run).`,
-          demo: `Demo listing: the agent wrote the e-mail for ${title}, nothing was sent.`,
+          dry_run: scamLocked
+            ? `Oumi Iris flagged ${title} as a possible scam: e-mail drafted, not sent.`
+            : `E-mail for ${title} composed but not sent (server dry run).`,
+          demo: scamLocked
+            ? `Demo listing (Oumi Iris scam lock): e-mail drafted for ${title}, not sent.`
+            : `Demo listing: the agent wrote the e-mail for ${title}, nothing was sent.`,
           no_contact: `${title} has no e-mail address to contact.`,
           failed: `Could not contact the landlord for ${title}. Retry from Contact Requests.`,
         }[outcome.state],

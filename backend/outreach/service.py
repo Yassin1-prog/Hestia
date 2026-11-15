@@ -97,6 +97,14 @@ def _overall_status(attempts: list[ChannelAttempt]) -> OutreachStatus:
     return "failed"
 
 
+def flagged_as_scam(listing: dict[str, Any]) -> bool:
+    """True when the Oumi Iris scam check flagged the listing. Such listings are never contacted."""
+    return str(listing.get("scam_verdict") or "").strip().upper() == "POSSIBLY_SCAM"
+
+
+SCAM_LOCK_DETAIL = "Not sent: Oumi Iris flagged this listing as a possible scam"
+
+
 class ListingOutreachAgent:
     """Owns the outreach for exactly one listing / landlord."""
 
@@ -115,6 +123,15 @@ class ListingOutreachAgent:
         self.settings = settings
         self.sms = sms
         self.email = email
+        self.scam_locked = flagged_as_scam(self.listing)
+
+    @property
+    def dry_run(self) -> bool:
+        return self.settings.dry_run or self.scam_locked
+
+    @property
+    def dry_run_detail(self) -> Optional[str]:
+        return SCAM_LOCK_DETAIL if self.scam_locked else None
 
     async def run(self, client: httpx.AsyncClient) -> PropertyOutreachResult:
         contacts = extract_contacts(self.listing)
@@ -151,8 +168,10 @@ class ListingOutreachAgent:
 
         body = compose_sms(self.listing, contacts.name, self.context)
         to = self.settings.override_phone or target
-        if self.settings.dry_run:
-            return ChannelAttempt(channel="sms", status="dry_run", to=to, intended_to=target, body=body)
+        if self.dry_run:
+            return ChannelAttempt(
+                channel="sms", status="dry_run", to=to, intended_to=target, body=body, detail=self.dry_run_detail
+            )
         result = await self.sms.send(client, to=to, body=body)
         return self._attempt("sms", result, to, target, body=body)
 
@@ -163,10 +182,10 @@ class ListingOutreachAgent:
 
         content = compose_email(self.listing, contacts.name, self.context)
         to = self.settings.override_email or target
-        if self.settings.dry_run:
+        if self.dry_run:
             return ChannelAttempt(
                 channel="email", status="dry_run", to=to, intended_to=target,
-                subject=content.subject, body=content.text,
+                subject=content.subject, body=content.text, detail=self.dry_run_detail,
             )
         result = await self.email.send(
             client, to=to, subject=content.subject, text=content.text, html=content.html,

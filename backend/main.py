@@ -20,6 +20,7 @@ from backend.outreach import (
     run_outreach,
 )
 
+from backend.decision import evaluate_ranked_properties, oumi_configured
 from backend.outreach.live import stream_listing_outreach
 from backend.photos import ImageFetchError, fetch_image
 from backend.streaming import NDJSON_MEDIA_TYPE, stream_async_events, stream_sync_pipeline
@@ -45,6 +46,7 @@ async def health():
     settings = OutreachSettings.from_env()
     return {
         "status": "ok",
+        "oumi_configured": oumi_configured(),
         "outreach": {
             "dry_run": settings.dry_run,
             "channels": settings.channels,
@@ -96,6 +98,39 @@ async def search_stream(payload: SearchInput):
         media_type=NDJSON_MEDIA_TYPE,
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Oumi Iris scam check on its own (backend/decision.py), without a full search
+# ---------------------------------------------------------------------------
+class DecisionInput(BaseModel):
+    properties: List[dict[str, Any]] = Field(
+        min_length=1, description="Ranked listings (PropertyDetails JSON), best first."
+    )
+    cohort: Optional[List[dict[str, Any]]] = Field(
+        default=None, description="Other listings in the area, for the price-per-m² comparison."
+    )
+
+
+@app.post("/api/decision/evaluate")
+async def decision_evaluate(payload: DecisionInput) -> List[dict[str, Any]]:
+    """Runs only the Oumi Iris scam check: verdict, risk % and the main reason per listing."""
+    if not oumi_configured():
+        raise HTTPException(status_code=503, detail="OUMI_API_KEY / OUMI_PROJECT_ID not set.")
+    try:
+        batch = await evaluate_ranked_properties(payload.properties, all_properties=payload.cohort)
+    except Exception as exc:  # Upstream error, timeout or unexpected response.
+        raise HTTPException(status_code=502, detail=f"Oumi Iris did not answer: {exc}") from exc
+    return [
+        {
+            "url": d.url,
+            "rank": d.initial_rank,
+            "scam_verdict": d.verdict,
+            "scam_risk_pct": d.scam_risk_pct,
+            "scam_reason": d.scam_reason,
+        }
+        for d in batch.results
+    ]
 
 
 @app.get("/api/image")

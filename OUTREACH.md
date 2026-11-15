@@ -88,7 +88,7 @@ Attempt `status`: `sent` (provider accepted it; `provider_id` = Twilio SID / Res
 | `RESEND_API_KEY` | resend.com → API keys. |
 | `RESEND_FROM_EMAIL` | Must be on a domain verified in Resend. If left empty it uses `onboarding@resend.dev`, which only delivers to the Resend account owner's inbox. |
 | `OUTREACH_DRY_RUN` | Default `true`. Set `false` to actually send. |
-| `OUTREACH_CHANNELS` | Channels enabled on the server, comma-separated. Default `sms,email`. A request's `channels` defaults to these, and channels not listed here are dropped even if a request asks for them. |
+| `OUTREACH_CHANNELS` | Channels enabled on the server, comma-separated. Default `email` (e-mail only by default; the Twilio SMS adapter is kept and can be re-enabled with `OUTREACH_CHANNELS=sms,email`). A request's `channels` defaults to these, and channels not listed here are dropped even if a request asks for them. |
 | `OUTREACH_OVERRIDE_PHONE` / `OUTREACH_OVERRIDE_EMAIL` | Optional. Redirects every real message to a teammate's phone or inbox. |
 | `GEMINI_API_KEY`, `FIRECRAWL_API_KEY` | Used by the search agent (moved out of the source code, see §7). |
 
@@ -102,6 +102,7 @@ If credentials are missing, nothing crashes. The attempt comes back `failed` wit
 4. **Portal contacts are never used.** E-mails on `spitogatos.gr`, `xe.gr`, `plot.gr`, `facebook.com` and `noreply@`-style addresses are filtered out. The Gemini prompt was also changed to say "never the portal's own support contact".
 5. **AI disclosure.** Every SMS and e-mail ends with "Sent on behalf of {user} by their relocation assistant."
 6. **Replies go to the user.** The e-mail `Reply-To` is the user's address, and the user's phone/e-mail are in the body. Landlords can answer the human directly even though inbound webhooks aren't built yet.
+7. **Oumi Iris `POSSIBLY_SCAM` dry-run lock.** If a listing carries `scam_verdict: "POSSIBLY_SCAM"`, both `ListingOutreachAgent` (`service.py`) and `stream_listing_outreach` (`live.py`) force `dry_run=True` even when `OUTREACH_DRY_RUN=false`. The agent still extracts contacts and composes the draft for review (with `detail: "Not sent: Oumi Iris flagged this listing as a possible scam"`), but never sends an SMS or e-mail.
 
 ## 6. Extraction & delivery decisions
 

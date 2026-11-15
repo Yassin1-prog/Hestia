@@ -36,7 +36,8 @@ function Summary({
   if (result?.stats?.scanned) {
     parts.push(
       <>
-        <CountUp value={result.stats.scanned} duration={1000} /> listings scanned
+        <CountUp value={result.stats.scanned} duration={1000} /> listing
+        {result.stats.scanned === 1 ? "" : "s"} scanned
       </>,
     );
   }
@@ -46,6 +47,21 @@ function Summary({
         <CountUp value={result.properties.length} duration={700} /> shortlisted
       </>,
     );
+    const checked = result.properties.filter((p) => p.scam_verdict);
+    if (checked.length) {
+      const flagged = checked.filter((p) => p.scam_verdict === "POSSIBLY_SCAM").length;
+      parts.push(
+        flagged ? (
+          <span className="feed-summary-risk">
+            Oumi Iris flagged {flagged} possible scam{flagged === 1 ? "" : "s"}
+          </span>
+        ) : checked.length === result.properties.length ? (
+          <>Oumi Iris: all safe</>
+        ) : (
+          <>Oumi Iris: {checked.length} safe</>
+        ),
+      );
+    }
   }
   return (
     <>
@@ -89,7 +105,11 @@ export function AgentFeed({ steps, phase, result, error, durationMs }: AgentFeed
         </button>
       )}
 
-      <div className={`collapse${collapsed ? " is-collapsed" : ""}`} aria-hidden={collapsed}>
+      <div
+        className={`collapse${collapsed ? " is-collapsed" : ""}`}
+        aria-hidden={collapsed}
+        inert={collapsed}
+      >
         <div className="collapse-inner">
           {!steps.length && phase === "running" ? (
             <p className="feed-booting">

@@ -18,9 +18,12 @@ export interface Property {
   score_reason: string;
   title?: string;
   location?: string;
-  /** Oumi Iris verdict from backend/decision.py, when the scam gate has run. */
+  /** Oumi Iris verdict from backend/decision.py, when the scam check has run. */
   scam_verdict?: "SAFE" | "POSSIBLY_SCAM";
+  /** 0-100. */
   scam_risk_pct?: number;
+  /** The main red flag in plain English (only on flagged listings). */
+  scam_reason?: string | null;
   /** The listing agent's judgement for this user (deep scrape). */
   pros?: string[];
   /** Listing photos, main photo first (deep scrape: og:image + page images). */
