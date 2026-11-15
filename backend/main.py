@@ -1,3 +1,4 @@
+import os
 from typing import Any, List, Optional
 
 from dotenv import load_dotenv
@@ -29,9 +30,17 @@ load_dotenv()
 
 app = FastAPI(title="GENAI Summit Agent API", version="0.2.0")
 
+# Comma-separated list of allowed browser origins, e.g. "https://hestia.up.railway.app".
+# Defaults to "*" (any origin) for local development.
+CORS_ALLOW_ORIGINS = [
+    o.strip().rstrip("/")
+    for o in os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
+    if o.strip()
+] or ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

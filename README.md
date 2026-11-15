@@ -103,3 +103,14 @@ uv run ruff check .
 uv run pytest -v
 cd frontend && npm run format:check && npm run typecheck && npm run build
 ```
+
+### Deploy (Railway)
+
+Two services from this repo, each built from its own Dockerfile:
+
+| Service | Root directory | Config file | Key variables |
+| --- | --- | --- | --- |
+| `backend` | `/` | `/backend/railway.json` | API keys from `.env.example`, `CORS_ALLOW_ORIGINS=<frontend URL>` |
+| `frontend` | `/frontend` | `/frontend/railway.json` | `NEXT_PUBLIC_API_URL=<backend URL>`, `NEXT_PUBLIC_VAPI_PUBLIC_KEY` |
+
+`NEXT_PUBLIC_*` values are baked in at build time, so redeploy the frontend after changing them.
