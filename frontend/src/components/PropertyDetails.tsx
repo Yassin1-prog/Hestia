@@ -132,9 +132,7 @@ export function PropertyDetails({
 }: PropertyDetailsProps) {
   const open = !!property;
   /** The question briefing is open, for an e-mail or a call. */
-  const [briefing, setBriefing] = useState<OutreachChannel | null>(
-    startWithBrief ? "email" : null,
-  );
+  const [briefing, setBriefing] = useState<OutreachChannel | null>(startWithBrief ? "email" : null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [shown, setShown] = useState<Property | null>(property);

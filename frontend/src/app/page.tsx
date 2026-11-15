@@ -408,9 +408,7 @@ export default function HomePage() {
         favorite={!!details && favoriteUrls.has(details.property.url)}
         run={details ? outreach.runs[details.property.url] : undefined}
         onClose={closeDetails}
-        onApprove={(channel, questions) =>
-          details && approve(details.property, channel, questions)
-        }
+        onApprove={(channel, questions) => details && approve(details.property, channel, questions)}
         onToggleFavorite={() => details && toggleFavorite(details.property)}
       />
 

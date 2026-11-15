@@ -68,7 +68,10 @@ export function outcomeText(outcome: EmailOutcome | undefined): { text: string; 
           ? { text: "Call not placed (Oumi Iris scam lock)", tone: "warn" }
           : { text: "Call not placed (server dry run)", tone: "muted" };
       case "no_contact":
-        return { text: `Call not placed${outcome.detail ? `: ${outcome.detail}` : ""}`, tone: "warn" };
+        return {
+          text: `Call not placed${outcome.detail ? `: ${outcome.detail}` : ""}`,
+          tone: "warn",
+        };
       case "failed":
         return { text: `Call failed${outcome.detail ? `: ${outcome.detail}` : ""}`, tone: "error" };
     }

@@ -462,7 +462,10 @@ export function demoCallEvents(p: Property, profile: Profile, approved?: string[
   const scamLocked = p.scam_verdict === "POSSIBLY_SCAM";
   const where = p.location || propertyTitle(p);
   s.start("brief", "Reading the listing", "Collecting what the landlord needs to know")
-    .log("brief", `Listing: ${[where, p.sqm ? `${p.sqm} m²` : "", formatPrice(p.price)].filter(Boolean).join(" · ")}`)
+    .log(
+      "brief",
+      `Listing: ${[where, p.sqm ? `${p.sqm} m²` : "", formatPrice(p.price)].filter(Boolean).join(" · ")}`,
+    )
     .log("brief", `Calling on behalf of ${profile.name}`)
     .log("brief", `${plural(questions.length, "question")} for the landlord`, "ok")
     .done("brief", "Listing and profile loaded");
