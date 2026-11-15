@@ -1,8 +1,9 @@
 # Frontend: Hestia, the autonomous housing agent UI
 
 Next.js 15 (App Router, React 19) single-page app in [`frontend/`](./frontend). It calls the FastAPI
-backend at `POST http://localhost:8000/api/search` and falls back to realistic demo data if the
-backend is offline, errors or times out. That keeps the live demo safe.
+backend at `POST http://localhost:8000/api/search` (and `/api/search/stream`) to fetch and evaluate
+**real, live rental listing data**, falling back to realistic demo data only if the backend is offline,
+errors or times out. That keeps the live demo safe.
 
 ## Run it locally
 
@@ -48,9 +49,9 @@ drawers scroll. Below 900px wide, the two panes stack and each scrolls on its ow
   (`SAFE` | `POSSIBLY_SCAM`, from `backend/decision.py`), `scam_risk_pct` (0–100), and
   `scam_reason` (plain-English red flag when flagged).
 - **Fallback:** a network error, non-2xx status or 180 s timeout switches to demo data, with a notice in
-  the feed and a **Demo data** badge (it reads **Live data** otherwise). The 3 demo sets in
-  `src/lib/demo.ts` are chosen by keyword: Pangrati/Mets (default), central-Athens penthouse, and
-  student/NTUA. Their phone numbers and links are placeholders.
+  the feed and a **Demo data** badge (it reads **Live data** whenever real market listings are used).
+  The 3 demo sets in `src/lib/demo.ts` are chosen by keyword: default 2-bedroom apartment,
+  city-center penthouse, and budget compact studio. Their phone numbers and links are placeholders.
 
 ## Decisions
 

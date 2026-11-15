@@ -1,4 +1,4 @@
-# Autonomous Relocation & Housing Agent — Hackathon Product Specification
+# Autonomous Housing Agent — Hackathon Product Specification
 
 > **Purpose of this Document:** Master product & architecture context prompt for the team and our AI coding agents.
 
@@ -6,11 +6,11 @@
 
 ## 1. One-Line Pitch
 
-An autonomous AI housing & relocation platform that owns the end-to-end process of discovering listings across multiple datasources, filtering out rental scams, ranking homes by user features, and deploying one dedicated outreach agent per landlord (via Phone Call, SMS, and Email) to verify details and book viewings.
+An autonomous AI housing platform that owns the end-to-end process of discovering **real, live listings** across multiple datasources, filtering out rental scams, ranking homes by user features, and deploying one dedicated outreach agent per landlord (via Phone Call, SMS, and Email) to verify details and book viewings.
 
 ## 2. The Problem
 
-Finding a place to live is fragmented across many sites (Spitogatos, XE.gr, Plot.gr, Facebook Marketplace, etc.) and requires repetitive searching, cross-checking duplicate ads, dodging sophisticated rental scams, comparing incomplete listings, and playing endless phone/SMS tag with landlords. People repeat this exhausting workflow every time they move or relocate.
+Finding a place to live is fragmented across many sites (Spitogatos, XE.gr, Plot.gr, Facebook Marketplace, etc.) and requires repetitive searching, cross-checking duplicate ads, dodging sophisticated rental scams, comparing incomplete listings, and playing endless phone/SMS tag with landlords. People repeat this exhausting workflow every time they search for a new home.
 
 ## 3. Vision
 
@@ -18,7 +18,7 @@ Shift the user from manually browsing dozens of tabs and chasing landlords to **
 
 ## MVP Scope & Principles
 
-This is an MVP. We are not targeting production-level code yet; the priority is a working end-to-end demonstration. Hardcoded rules and other pragmatic shortcuts are acceptable when they help us deliver the core experience.
+This is an MVP. We are not targeting production-level code yet; the priority is a working end-to-end demonstration backed by **real, live rental data** scraped on demand (with offline fallback only if external APIs are unavailable). Hardcoded rules and other pragmatic shortcuts are acceptable when they help us deliver the core experience.
 
 ## 4. Success Metrics
 
@@ -29,10 +29,10 @@ This is an MVP. We are not targeting production-level code yet; the priority is 
 
 ## 5. User Personas
 
-- **Student relocating** for university on a strict budget (high vulnerability to rental scams).
-- **Professional moving cities** with tight schedules who cannot spend all day calling landlords.
-- **Family relocating** with strict feature requirements (m², bedrooms, quiet neighborhood, pet policy).
-- **Digital nomad / mid-term relocator** (architecture remains extensible to short/mid-term stays).
+- **Budget-conscious renter** searching on a strict monthly budget (high vulnerability to underpriced rental scams).
+- **Busy professional** with tight schedules who cannot spend all day calling landlords.
+- **Household / family** with strict feature requirements (m², bedrooms, quiet neighborhood, pet policy).
+- **Mid-term / flexible renter** looking for furnished or adaptable stays (architecture remains extensible across stay lengths).
 
 ## 6. End-to-End User Journey & Pipeline
 
@@ -117,7 +117,7 @@ Automates the three things house-hunters hate most:
 
 ## 13. Decision Model & Initial Integration Choices
 
-- **Decision Model (Committed):** **Oumi (`Iris` Decision Model)** — powers the **ScamGuard Decision Gate** (`https://docs.oumi.ai/guides/decision-models`, team registration: `https://labs.oumi.ai/hackathon-village/genai-summit-athens-2026`). Its job is to return if a listing is a potential scam or not.
+- **Decision Model (Committed):** **Oumi (`Iris` Decision Model)** — powers the **ScamGuard Decision Gate** (`https://docs.oumi.ai/guides/decision-models`). Its job is to return if a real listing is a potential scam or not.
 - **Initial third-party/API choices:**
   - **Web scraper:** Firecrawl.
   - **Agent orchestration:** Pydantic AI.
@@ -138,16 +138,16 @@ Real estate portals give you 500 unverified tabs; chatbots just summarize text. 
 - Interactive Google Maps polygon drawing to constrain search coordinates.
 - Commute & neighborhood walkability scoring.
 - Rent negotiation / price fairness estimator.
-- Post-viewing comparison & relocation checklist.
+- Post-viewing comparison & move-in checklist.
 - Multiagents instead of a single agent
 - Showing agent while its working (end-to-end) to give the user the agentic experience
 - Expose api calls so it is a thing that agents also want and can utilize
 
 ## 16. Mapping to Judging Criteria
 
-- **Usefulness:** Solves a high-friction, real-world problem end-to-end (multi-source search + scam protection + landlord outreach).
+- **Usefulness:** Solves a high-friction, real-world problem end-to-end using real, live market data (multi-source search + scam protection + landlord outreach).
 - **Craft:** Clean separation between pluggable data connectors, a dedicated Scam Decision Model, a Feature Ranker, a Human Approval Gate, and parallel state-machine Outreach Agents with multi-channel fallback.
-- **Aura:** Watching multiple autonomous agents simultaneously call and message landlords on a live command center dashboard feels like having a team of personal relocation assistants.
+- **Aura:** Watching multiple autonomous agents simultaneously call and message landlords on a live command center dashboard feels like having a team of personal housing assistants.
 
 ---
 

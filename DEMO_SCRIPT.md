@@ -15,13 +15,13 @@
 - **[On Screen]:** Show the user entering a natural language housing request (location, budget, size, and lifestyle features—plus an optional highlighted map zone) and launching the multi-provider search.
 > *"The user starts by describing what they need in plain language—location, budget, size, and must-have features—with the option to highlight a target zone directly on a map.*  
 >
-> *From there, our Discovery Orchestrator queries a generalized provider layer in parallel. Because all connectors implement one common schema, we can pull from Spitogatos, local classifieds, and other portals simultaneously, then automatically deduplicate properties that appear on multiple sites."*
+> *From there, our Discovery Orchestrator queries live real-estate datasources in parallel to pull real, up-to-date market listings. Because all connectors implement one common schema, we can pull from portals simultaneously, then automatically deduplicate properties that appear on multiple sites."*
 
 ---
 
 ## `1:15 – 1:55` | Stage 2: Feature Ranker & Post-Ranker Oumi `Iris` Scam Decision Model (40 sec)
 - **[On Screen]:** Show the Feature Ranker scores alongside the **Oumi `Iris`** scam-check badges (`Safe` vs. `Possible scam` with risk % and a plain-English warning), sinking a flagged listing below the verified `SAFE` shortlist and locking outreach to draft-only.
-> *"Next, our Feature Ranker scores all deduplicated listings against the user's constraints, detects what details are missing—like pet policies or building charges—and narrows the pool to the Top-K finalists.*  
+> *"Next, our Feature Ranker scores all real, deduplicated listings against the user's constraints, detects what details are missing—like pet policies or building charges—and narrows the pool to the Top-K finalists.*  
 >
 > *But here is the trap with real estate portals: **scammers design bait listings to rank #1** by stuffing luxury keywords at half the market price. So before the user ever sees or contacts a landlord, our Top-K ranked results pass in parallel through **Oumi's `Iris` Decision Model**.*  
 >

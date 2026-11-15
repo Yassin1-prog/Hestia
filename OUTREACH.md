@@ -1,6 +1,6 @@
 # Landlord Outreach — Contact Extraction + SMS / E-mail
 
-> **Scope:** The step after the human approval gate. It takes the agent's response for each listing the user approved, **extracts the landlord's phone number and e-mail**, composes a viewing-request message, and **sends it by SMS (Twilio) and e-mail (Resend)**, with one agent per listing running in parallel.
+> **Scope:** The step after the human approval gate. It takes the agent's response for each **real, live listing** the user approved, **extracts the landlord's phone number and e-mail**, composes a viewing-request message, and **sends it by SMS (Twilio) and e-mail (Resend)**, with one agent per listing running in parallel (guarded by `OUTREACH_DRY_RUN` and demo overrides).
 > **Code:** [`backend/outreach/`](./backend/outreach/) · **Tests:** [`tests/test_outreach.py`](./tests/test_outreach.py)
 
 ---

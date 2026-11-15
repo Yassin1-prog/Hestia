@@ -1,7 +1,7 @@
 # Oumi `Iris` Decision Model — Post-Ranker Integration Guide
 
 > **Purpose:** Concise reference for how **Oumi's `Iris` Decision Model** (`POST https://inference.oumi.ai/v1/systemone`) is integrated into our pipeline via [`backend/decision.py`](./backend/decision.py).  
-> **Scope:** `Iris` runs **after the Feature Ranker and deep scrape** on the shortlisted properties and classifies each as **`SAFE`** or **`POSSIBLY_SCAM`**. Per-criterion `rubric_probabilities` are computed internally in `backend/decision.py`, while only the single strongest red flag at or above `0.50` (`SCAM_THRESHOLD`) is surfaced as plain-English `scam_reason` on `POSSIBLY_SCAM` listings. It is completely location-agnostic and does **not** decide outreach channel strategies.
+> **Scope:** `Iris` runs **after the Feature Ranker and deep scrape** on the real, live shortlisted properties and classifies each as **`SAFE`** or **`POSSIBLY_SCAM`**. Per-criterion `rubric_probabilities` are computed internally in `backend/decision.py`, while only the single strongest red flag at or above `0.50` (`SCAM_THRESHOLD`) is surfaced as plain-English `scam_reason` on `POSSIBLY_SCAM` listings. It is completely location-agnostic and does **not** decide outreach channel strategies.
 
 ---
 
