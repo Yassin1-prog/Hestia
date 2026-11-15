@@ -1,4 +1,6 @@
-"""Search & ranking agent: Spitogatos search → shallow scrape → rank → deep scrape top 3.
+"""Search & ranking agent: plan → scan every site in parallel → rank → deep scrape top 3.
+
+Sites (Spitogatos, xe.gr, Booking.com) are adapters in backend/sources.py.
 
 Usage:
     from backend.agent import run_search_pipeline
@@ -14,16 +16,18 @@ from __future__ import annotations
 
 import os
 import sys
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import List, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from backend.photos import card_thumbnails, listing_photos
+from backend.photos import listing_photos
+from backend.sources import STAY_NIGHTS, ListingSource, ScanResult, enabled_sources, source_for_url
 from backend.streaming import Cancelled, Emit, StepReporter
 
 load_dotenv()
@@ -35,8 +39,13 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 # PYDANTIC SCHEMAS (Data structure)
 # NOTE: no default values — the Gemini response_schema does not support them.
 # ==========================================
-class SearchURL(BaseModel):
-    url: str = Field(description="The search URL for Spitogatos.")
+class SearchPlan(BaseModel):
+    spitogatos_url: str = Field(description="The search URL for spitogatos.gr.")
+    area: str = Field(description="The neighbourhood and city in English, e.g. 'Pangrati, Athens'.")
+    area_greek: Optional[str] = Field(description="The neighbourhood's name in Greek, e.g. 'Παγκράτι'.")
+    max_price: Optional[int] = Field(description="Maximum monthly rent in euros, if the user gave one.")
+    min_sqm: Optional[int] = Field(description="Minimum size in square meters, if the user gave one.")
+    min_bedrooms: Optional[int] = Field(description="Minimum number of bedrooms, if the user gave one.")
 
 
 class PropertyPreview(BaseModel):
@@ -82,7 +91,7 @@ class PropertyDetails(BaseModel):
     )
     agent_email: Optional[str] = Field(
         description="The e-mail address of the agent/owner, if available. "
-        "Never the portal's own address (e.g. @spitogatos.gr)."
+        "Never the portal's own address (e.g. @spitogatos.gr, @xe.gr, @booking.com)."
     )
     missing_info: List[str] = Field(
         description="Up to 4 short questions IN ENGLISH to ask the landlord about important details "
@@ -138,6 +147,7 @@ def _generate(prompt: str, schema: type[BaseModel]):
 @dataclass
 class ScrapedPage:
     markdown: str = ""
+    raw_html: str = ""
     og_image: Optional[str] = None
     images: List[str] = field(default_factory=list)
 
@@ -151,10 +161,11 @@ def _field(obj, *names):
     return None
 
 
-def scrape_page(url: str, images: bool = False) -> ScrapedPage:
-    """Scrapes a page with Firecrawl (any firecrawl-py version): markdown, og:image, image URLs."""
+def scrape_page(url: str, images: bool = False, raw_html: bool = False) -> ScrapedPage:
+    """Scrapes a page with Firecrawl (any firecrawl-py version): markdown, og:image, image URLs,
+    and optionally the raw HTML (for data embedded in the page, see backend/sources.py)."""
     firecrawl = _firecrawl()
-    formats = ["markdown", "images"] if images else ["markdown"]
+    formats = ["markdown"] + (["images"] if images else []) + (["rawHtml"] if raw_html else [])
     if hasattr(firecrawl, "scrape"):
         try:
             res = firecrawl.scrape(url, formats=formats)
@@ -171,6 +182,7 @@ def scrape_page(url: str, images: bool = False) -> ScrapedPage:
     imgs = _field(res, "images") or []
     return ScrapedPage(
         markdown=_field(res, "markdown") or "",
+        raw_html=_field(res, "raw_html", "rawHtml") or "",
         og_image=og if isinstance(og, str) else None,
         images=[i for i in imgs if isinstance(i, str)],
     )
@@ -225,27 +237,48 @@ def _preview_line(h: PropertyPreview) -> str:
     return " · ".join(bits) + (f": {info}" if info else "")
 
 
-FILTER_LABELS = {
-    "max_price": "Max price: €{}",
-    "min_price": "Min price: €{}",
-    "min_area": "Min size: {} m²",
-    "max_area": "Max size: {} m²",
-    "min_rooms": "Min bedrooms: {}",
-}
-
-
-def _describe_filters(search_url: str) -> List[str]:
-    """Human-readable lines for the filters the agent put in the Spitogatos URL."""
-    parsed = urlparse(search_url)
-    lines: List[str] = []
-    segments = [s for s in parsed.path.split("/") if s]
-    if len(segments) >= 2:
-        lines.append(f"Area: {segments[-1].replace('-', ' ').title()}")
-    for key, values in parse_qs(parsed.query).items():
-        value = values[0] if values else ""
-        label = FILTER_LABELS.get(key)
-        lines.append(label.format(value) if label else f"{key.replace('_', ' ').capitalize()}: {value}")
+def _describe_plan(plan: SearchPlan) -> List[str]:
+    """Human-readable lines for the search filters the agent planned."""
+    lines = [f"Area: {plan.area}" + (f" ({plan.area_greek})" if plan.area_greek else "")]
+    if plan.max_price:
+        lines.append(f"Max price: €{plan.max_price}/month")
+    if plan.min_sqm:
+        lines.append(f"Min size: {plan.min_sqm} m²")
+    if plan.min_bedrooms:
+        lines.append(f"Min bedrooms: {plan.min_bedrooms}")
     return lines
+
+
+def _names(sources: List[ListingSource]) -> str:
+    names = [s.name for s in sources]
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _scan_source(
+    source: ListingSource, plan: SearchPlan, progress: StepReporter
+) -> ScanResult:
+    """One scanner agent: reads one site's results page."""
+    agent_id = f"source-{source.key}"
+    progress.agent("scan", agent_id, source.name, "running", "Opening the results page",
+                   hub="Orchestrator", source=source.key)
+
+    def log(text: str, kind: str = "info") -> None:
+        progress.log("scan", f"{source.name}: {text}", kind, source=source.key)  # type: ignore[arg-type]
+
+    try:
+        result = source.scan(plan, log)
+    except Cancelled:
+        raise
+    except Exception:
+        progress.agent("scan", agent_id, source.name, "failed", "Results page unavailable", source=source.key)
+        raise
+    n = len(result.listings)
+    log(f"found {n} listing{'' if n == 1 else 's'}", "ok" if n else "warn")
+    for h in result.listings[:2]:
+        progress.log("scan", _preview_line(h), source=source.key)
+    progress.agent("scan", agent_id, source.name, "done" if n else "failed",
+                   f"{n} listing{'' if n == 1 else 's'}", source=source.key)
+    return result
 
 
 def _inspect_listing(
@@ -254,8 +287,10 @@ def _inspect_listing(
     """One shortlist agent: deep-scrapes a listing for details, contacts, questions and photos."""
     tag = f"Agent {index + 1}"
     agent_id = f"listing-{index + 1}"
-    progress.agent("inspect", agent_id, tag, "running", f"Opening {_short_url(url)}", hub="Orchestrator")
-    progress.log("inspect", f"{tag} is opening {_short_url(url)}")
+    site = source_for_url(url)
+    key = site.key if site else None
+    progress.agent("inspect", agent_id, tag, "running", f"Opening {_short_url(url)}", hub="Orchestrator", source=key)
+    progress.log("inspect", f"{tag} is opening {_short_url(url)}", source=key)
     try:
         page = scrape_page(url, images=True)
         detail_markdown = page.markdown
@@ -267,10 +302,17 @@ def _inspect_listing(
             f"{tag} collected {len(photos)} photo{'' if len(photos) == 1 else 's'}" if photos
             else f"{tag} found no photos on the listing",
             "info" if photos else "warn",
+            source=key,
         )
         kb = len(detail_markdown) // 1000 or 1
-        progress.agent("inspect", agent_id, tag, "running", f"Reading the full listing ({kb} KB)")
-        progress.log("inspect", f"{tag} is reading the full listing ({kb} KB)")
+        progress.agent("inspect", agent_id, tag, "running", f"Reading the full listing ({kb} KB)", source=key)
+        progress.log("inspect", f"{tag} is reading the full listing ({kb} KB)", source=key)
+        stay_note = (
+            f"This is a furnished short stay on {site.name}: the price shown is for a "
+            f"{STAY_NIGHTS}-night stay, report it as the monthly price. The host is the landlord."
+            if site and site.short_stay
+            else ""
+        )
         prompt_details = f"""
         The user requests: '{user_request}'.
         Confirm if this listing matches (score it 1-10).
@@ -281,6 +323,7 @@ def _inspect_listing(
         even if the listing is in Greek.
         Judge the listing for this user: give concrete pros and cons, and score each of these
         metrics 1-10 with a short note: {", ".join(METRIC_NAMES)}.
+        {stay_note}
         Extract the data into JSON.
         Listing Markdown:
         {detail_markdown[:15000]}
@@ -289,7 +332,7 @@ def _inspect_listing(
     except Cancelled:
         raise
     except Exception:
-        progress.agent("inspect", agent_id, tag, "failed", "Could not read the listing")
+        progress.agent("inspect", agent_id, tag, "failed", "Could not read the listing", source=key)
         raise
     property_data.url = url
     contact = (
@@ -303,10 +346,12 @@ def _inspect_listing(
         f"{tag}: scored {property_data.agentic_score}/10, {contact}, "
         f"{questions} open question{'' if questions == 1 else 's'}",
         "ok" if property_data.agent_email else "warn",
+        source=key,
     )
     progress.agent(
         "inspect", agent_id, tag, "done",
         f"{property_data.agentic_score}/10 · {'e-mail found' if property_data.agent_email else 'no e-mail'}",
+        source=key,
     )
     return property_data, photos
 
@@ -361,81 +406,111 @@ def _scam_gate(
     return verdicts
 
 
+def _site_fields(url: str) -> dict:
+    site = source_for_url(url)
+    return {"source": site.key, "source_name": site.name, "short_stay": site.short_stay} if site else {}
+
+
 def run_search(user_request: str, emit: Optional[Emit] = None, verbose: bool = False) -> SearchOutcome:
     """The full search pipeline. `emit` receives live progress events (see backend/streaming.py)."""
     progress = StepReporter(emit)
     log = print if verbose else (lambda *a, **k: None)
 
-    # STEP 1: URL Generation
+    sources = enabled_sources()
+
+    # STEP 1: Plan the search once; every site builds its own URL from the plan.
     progress.start("understand", STEP_TITLES["understand"], "Turning your request into search filters")
-    progress.log("understand", "Gemini is translating your request into Spitogatos filters")
-    log("1. The Agent is thinking of the search URL...")
-    prompt_url = f"""
+    progress.log("understand", f"Gemini is translating your request into filters for {_names(sources)}")
+    log("1. The Agent is planning the search...")
+    prompt_plan = f"""
     The user requests: '{user_request}'.
-    Create a search URL for spitogatos.gr.
-    Example structure: https://www.spitogatos.gr/enoikiaseis-katoikies/pagkrati?max_price=600
+    Plan a rental search in Greece.
+    - spitogatos_url: a search URL for spitogatos.gr.
+      Example structure: https://www.spitogatos.gr/enoikiaseis-katoikies/pagkrati?max_price=600
+    - area: the neighbourhood and city in English (e.g. 'Pangrati, Athens'); the city alone if no
+      neighbourhood is given; 'Athens' if no place is given.
+    - area_greek: the neighbourhood (or city) name in Greek (e.g. 'Παγκράτι').
+    - max_price, min_sqm, min_bedrooms: the user's limits, or null if not stated.
     """
-    search_url = _generate(prompt_url, SearchURL).url
-    log(f"-> Generated URL: {search_url}\n")
-    for line in _describe_filters(search_url):
+    plan = _generate(prompt_plan, SearchPlan)
+    log(f"-> Plan: {plan}\n")
+    for line in _describe_plan(plan):
         progress.log("understand", line)
-    progress.log("understand", "Search URL ready: " + search_url.replace("https://", "").replace("www.", ""), "ok")
+    for source in sources:
+        progress.log("understand", f"{source.name} search planned", "ok", source=source.key)
     progress.done("understand", "Search filters ready")
 
-    # STEP 2: Shallow Scrape (Finding all Links)
-    progress.start("scan", STEP_TITLES["scan"], "Reading every listing on the results page")
-    progress.log("scan", "Firecrawl is opening the Spitogatos results page")
-    log("2. Firecrawl is scanning the initial results page...")
-    search_page_markdown = get_markdown(search_url)
-    thumbnails = card_thumbnails(search_page_markdown)
-    progress.log("scan", f"Results page downloaded ({len(search_page_markdown) // 1000 or 1} KB of text)")
-    progress.log("scan", "Gemini is extracting every listing card")
-    prompt_extract_all = f"""
-    Read the following markdown from the Spitogatos search results.
-    Identify ALL property listings on the page.
-    For each one, find its URL, price, square meters, and a brief description.
-    Ignore ads or links that are not property listings.
-
-    Markdown:
-    {search_page_markdown[:25000]}
-    """
-    log("Gemini is extracting ALL URLs and their basic details...")
-    all_houses = _generate(prompt_extract_all, AllProperties).properties
+    # STEP 2: Shallow scrape — one scanner agent per site, in parallel.
+    progress.start(
+        "scan", STEP_TITLES["scan"], f"Searching {_names(sources)} in parallel",
+        sources=[s.key for s in sources],
+    )
+    progress.log("scan", f"Dispatching {len(sources)} scanner agents, one per site")
+    log(f"2. Firecrawl is scanning {_names(sources)}...")
+    all_houses: List[PropertyPreview] = []
+    thumbnails: dict[str, str] = {}
+    site_by_url: dict[str, ListingSource] = {}
+    with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+        futures = [(src, pool.submit(_scan_source, src, plan, progress)) for src in sources]
+        for src, future in futures:
+            try:
+                scan = future.result()
+            except Cancelled:
+                raise
+            except Exception as exc:  # One unreachable site must not sink the whole search.
+                progress.log("scan", f"{src.name} could not be searched: {exc}", "warn", source=src.key)
+                continue
+            for h in scan.listings:
+                if h.url and h.url not in site_by_url:
+                    site_by_url[h.url] = src
+                    all_houses.append(h)
+            thumbnails.update(scan.thumbnails)
     log(f"Found {len(all_houses)} properties in total!\n")
     if not all_houses:
-        progress.log("scan", "The results page had no listings for these filters", "warn")
+        progress.log("scan", "No site had listings for these filters", "warn")
         progress.done("scan", "No listings found", status="failed")
         return SearchOutcome(properties=[], scanned=0, rejected=0)
-    progress.log("scan", f"Found {len(all_houses)} listings", "ok")
-    for h in all_houses[:3]:
-        progress.log("scan", _preview_line(h))
-    progress.done("scan", f"Scanned {len(all_houses)} listings")
+    per_site = Counter(site_by_url[h.url].name for h in all_houses)
+    progress.done(
+        "scan",
+        f"Scanned {len(all_houses)} listings (" + ", ".join(f"{n} on {name}" for name, n in per_site.items()) + ")",
+    )
 
     # STEP 3A: Agentic Ranking on ALL properties
     progress.start("rank", STEP_TITLES["rank"], "Scoring each listing against your constraints")
     progress.log("rank", f"Weighing price, size and description of all {len(all_houses)} listings")
     log(f"3. The Agent is evaluating all {len(all_houses)} properties simultaneously...")
     houses_text = "".join(
-        f"[{i}] Link: {h.url} | Price: {h.price} | Sq.m.: {h.sqm} | Info: {h.basic_info}\n"
+        f"[{i}] Site: {site_by_url[h.url].name} | Link: {h.url} | Price: {h.price} | Sq.m.: {h.sqm}"
+        f" | Info: {h.basic_info}\n"
         for i, h in enumerate(all_houses)
+    )
+    stay_sites = sorted({s.name for s in site_by_url.values() if s.short_stay})
+    stay_note = (
+        f"Listings from {', '.join(stay_sites)} are furnished short stays: their price is the cost of "
+        f"{STAY_NIGHTS} nights, usually above a long-term rent. Prefer long-term rentals unless the user "
+        "wants a short, temporary or furnished stay."
+        if stay_sites
+        else ""
     )
     prompt_rank_all = f"""
     The user requests: '{user_request}'.
-    Below is a list of {len(all_houses)} apartments.
+    Below is a list of {len(all_houses)} apartments from several property sites.
     Acting as an expert real estate agent, evaluate each one and pick the top {TOP_N}.
     Base your decision on the price, square meters, and description.
+    {stay_note}
 
     List:
     {houses_text}
     """
     ranked = _generate(prompt_rank_all, PropertyList).links
-    top_urls = list(dict.fromkeys(link.url for link in ranked))[:TOP_N]
+    top_urls = [u for u in dict.fromkeys(link.url for link in ranked) if u in site_by_url][:TOP_N]
     log(f"-> The Agent selected the top {TOP_N}: {top_urls}\n")
     by_url = {h.url: h for h in all_houses}
     for i, url in enumerate(top_urls):
         preview = by_url.get(url)
         line = _preview_line(preview) if preview else _short_url(url)
-        progress.log("rank", f"Shortlisted #{i + 1}: {line}", "ok")
+        progress.log("rank", f"Shortlisted #{i + 1}: {line}", "ok", source=site_by_url[url].key)
     set_aside = max(0, len(all_houses) - len(top_urls))
     if set_aside:
         progress.log("rank", f"Set aside {set_aside} weaker matches")
@@ -465,13 +540,20 @@ def run_search(user_request: str, emit: Optional[Emit] = None, verbose: bool = F
     progress.done("inspect", f"Found e-mail contacts for {with_email} of {len(final_properties)} listings")
 
     # STEP 4: Oumi Iris scam gate (optional, needs OUMI_API_KEY + OUMI_PROJECT_ID).
-    verdicts = _scam_gate(final_properties, all_houses, progress) if final_properties else {}
+    # Short-stay prices would skew the area's price per m², so they are not used as comparables.
+    cohort = [h for h in all_houses if not site_by_url[h.url].short_stay] or all_houses
+    verdicts = _scam_gate(final_properties, cohort, progress) if final_properties else {}
 
     # STEP 5: Final ordering. Scam-flagged listings sink to the bottom.
     progress.start("final", STEP_TITLES["final"], "Final scoring")
     final_properties.sort(key=lambda x: x.agentic_score, reverse=True)
     results = [
-        {**p.model_dump(), **verdicts.get(p.url, {}), "images": photos_by_url.get(p.url, [])}
+        {
+            **p.model_dump(),
+            **verdicts.get(p.url, {}),
+            "images": photos_by_url.get(p.url, []),
+            **_site_fields(p.url),
+        }
         for p in final_properties
     ]
     results.sort(key=lambda r: r.get("scam_verdict") == "POSSIBLY_SCAM")

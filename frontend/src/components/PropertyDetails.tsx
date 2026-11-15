@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { ContactBrief } from "@/components/ContactBrief";
 import { CountUp } from "@/components/CountUp";
 import { PhotoGallery } from "@/components/ListingPhoto";
+import { SiteBadge, siteForUrl } from "@/components/SiteLogo";
 import { OutreachWorkspace } from "@/components/OutreachWorkspace";
 import {
   formatPrice,
@@ -159,6 +160,7 @@ export function PropertyDetails({
   }, [briefing, hasRun]);
 
   const p = shown;
+  const site = p ? (p.source ?? siteForUrl(p.url)) : undefined;
   const working = run?.phase === "running";
 
   return (
@@ -175,8 +177,13 @@ export function PropertyDetails({
           <header className="modal-head">
             <div className="modal-heading">
               <p className="card-location">
-                <MapPin size={13} strokeWidth={1.75} />
-                {propertyLocation(p)}
+                {(p.location || !site) && (
+                  <>
+                    <MapPin size={13} strokeWidth={1.75} />
+                    {propertyLocation(p)}
+                  </>
+                )}
+                {site && <SiteBadge source={site} />}
                 {rank > 0 && <span className="modal-rank">#{rank} match</span>}
               </p>
               <h2 className="modal-title">{propertyTitle(p)}</h2>

@@ -18,6 +18,11 @@ export interface Property {
   score_reason: string;
   title?: string;
   location?: string;
+  /** The site the listing was found on (backend/sources.py key, e.g. "xe"). */
+  source?: string;
+  source_name?: string;
+  /** Furnished short stay (Booking.com): the price is the cost of 30 nights. */
+  short_stay?: boolean;
   /** Oumi Iris verdict from backend/decision.py, when the scam check has run. */
   scam_verdict?: "SAFE" | "POSSIBLY_SCAM";
   /** 0-100. */

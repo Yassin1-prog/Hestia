@@ -3737,3 +3737,56 @@ a.contact-phone:hover {
     padding: 0 16px;
   }
 }
+
+/* ==========================================================================
+   Site logos (Spitogatos, xe.gr, Booking.com, Google Calendar): components/SiteLogo.tsx
+   ========================================================================== */
+.site-logo {
+  flex: none;
+  display: inline-block;
+  object-fit: contain;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  vertical-align: -0.2em;
+}
+
+.site-logo-fallback {
+  display: inline-grid;
+  place-items: center;
+  color: #111;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.site-logos {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.step-title-row .site-logos {
+  animation: rise 0.3s var(--ease) both;
+}
+
+.step-item-logo {
+  margin-right: 6px;
+}
+
+.swarm-node-logo {
+  margin-left: -1px;
+}
+
+.site-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-soft);
+}
