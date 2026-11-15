@@ -4,6 +4,9 @@
 >  **Hestia** turns a natural language prompt into  apartment matches from **real, live market data**, while at the same time checking their legitimacy. The app was designed to follow a human-in-the-loop architecture so that humans can always audit who/how the agent conctacts the landlords.
 ---
 
+## Problem Statement
+House hunting is a second job. Endless scrolling, rental scams, and wasted time in phone calls. That’s why we built Hestia.
+
 ## Why Hestia
 
 - **Real, live market data:** Scrapes live portals on demand via **Firecrawl** + **Gemini**—evaluating real listings, photos, €/m² cohort pricing, and landlord contacts (with automatic offline fallback only if the backend is down).
